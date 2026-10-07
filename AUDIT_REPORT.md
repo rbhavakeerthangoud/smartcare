@@ -1,0 +1,74 @@
+# SmartCare Phase 1 Audit Report
+
+**Audit date:** 2026-10-06  
+**Scope:** Repository source, deterministic tests, production build, focused lint, local sign-in route, and unauthenticated route/API behavior.  
+**Environment:** The project owner reports migration 001 was manually applied and confirmed in the development database, including `public.smartcare_audit_log`, and that the development ADMIN account can sign in. This workspace has only the public Supabase URL/publishable-key configuration and no authenticated browser session or sanitized schema export, so it cannot independently verify the live objects. Secret values were not inspected or included.
+
+## Findings
+
+| Area | Status | Problem / evidence boundary | Severity | Recommended fix |
+|---|---|---|---|---|
+| Authentication and sessions | Implemented; live workflow not tested | Supabase sign-in/session handling, role lookup, and logout auditing are present. No valid account was available to exercise login, persistence, logout, or role assignment end-to-end. | Medium | Use isolated test accounts and verify session refresh, logout, role lookup failure, and audit behavior against a non-production project. |
+| Role routes and authorized records | Implemented in UI and migration; live enforcement unverified | Direct unauthenticated browser requests to protected pages redirect to sign-in. Role-based checks exist in the shell and RLS migration; direct requests by each authenticated role were not tested. | Medium | Apply/verify migrations and run patient A/B, caregiver, clinician, and admin access tests against the deployed policies. |
+| Patient dashboard | Implemented; authenticated rendering not tested | The patient dashboard reads care-plan tasks, occurrences, events, and documents. The full route could not be reviewed with real authorized records. | Medium | Validate empty, loading, error, and populated states with synthetic non-clinical test fixtures in a test project. |
+| Care plan/task workflows | Implemented in client flows; end-to-end unverified | Creation and detail/edit logic exist. CRUD rollback, version snapshots, status transitions, and RLS behavior were not executed against Supabase. | Medium | Test create/read/update/version/status flows against a disposable database seeded with non-clinical fixtures. |
+| Evidence and execution | Deterministic engines present; selected cases tested | Tests cover representative evidence reconciliation and temporal behavior, including patient and caregiver reports, document evidence, dependency readiness, and timezone/DST boundaries. The execution state type has been expanded to cover the broader state model required for the Phase 5 specification, while `BLOCKED` remains modeled primarily in dependency evaluation. Live end-to-end role-bound execution checks remain pending. | Medium | Keep execution-state semantics aligned with the product owner and add live role-bound validation against the deployed schema before claiming a final execution-state model as complete. |
+| Time zones and recurrence | Implemented; focused unit coverage exists | Recurrence uses UTC calendar-date iteration and wall-clock windows; occurrence evaluation uses stored IANA zones. Tests now cover a New York fall-back repeated hour and reject a nonexistent spring-forward wall time; this is not exhaustive timezone validation. | Low | Expand timezone tests to more IANA zones and confirm product expectations for ambiguous/nonexistent wall times. |
+| Dependencies and escalation | Deterministic logic present; partially unit-tested | Dependency states and escalation rule mapping/deduplication have unit coverage. Live recipient grants, database RPC behavior, and notification delivery lifecycle were not verified. | Medium | Test atomic database behavior and recipient scoping with role-specific fixtures after migration deployment. |
+| Notifications | In-app path implemented; external channels unconfigured | Notification persistence, UI lifecycle, and acknowledgement logic exist. Email, SMS, voice, browser push, provider retries, and production delivery are not configured. | Low | Keep external channels marked unconfigured until credentials, provider setup, monitoring, and delivery tests exist. |
+| Documents/storage | Implemented in application and migration; live access unverified | Upload, private storage, metadata, and signed URLs exist in source. Storage policy behavior and signed link scoping/expiry were not tested against the live bucket. | Medium | Verify the bucket is private and run cross-patient read/upload/delete tests against deployed Storage policies. |
+| Database/schema | Partially auditable | The repository contains security/history migrations, but no base schema migration or database export. A complete application-query-to-schema, foreign-key, and index comparison is therefore unavailable. No schema change was made. | Medium | Obtain a sanitized schema export and compare it with all query column names/relationships before proposing migrations. |
+| API | Source-reviewed; limited smoke test | Cron and escalation routes validate authorization in source; unauthenticated `POST /api/escalations` returned `401`. Cron behavior with a valid secret and Supabase was not exercised. The Supabase diagnostic endpoint is now disabled in production and returns a generic public error outside logs. | Low | Add role-authorized route tests and exercise cron behavior against a non-production database. |
+| Security findings | Source remediation added; deployment pending | Migration 001 is reported by the project owner as manually applied and verified, not independently queried from this workspace. The prior review found an escalation RPC callable by authenticated users with care-plan access and clinician notification reads not scoped to authorized plans. Migration 002 addresses these paths; its live status is not confirmed. Migration 003 adds patient-scoped caregiver-grant visibility for the patient panel and also requires deployment before that panel can list other accounts. | Medium | Inspect the live migration history and policies safely; confirm 002/003 status before deploying anything, then test RPC denial, notification scoping, patient grant visibility, and API role/state checks. |
+| UI/responsive | Sign-in visually tested; protected routes source-reviewed | Sign-in had no horizontal overflow at 375, 390, 430, 768, 1024, 1280, or 1440 CSS pixels. Authenticated routes redirect to sign-in without a session, so their visual layouts were not browser-tested. | Low | Repeat visual checks for each role using authorized test accounts, including tables, dialogs, charts, and dark mode. |
+| Accessibility | Partial checks on sign-in only | Sign-in labels and keyboard focus outlines are present; reduced-motion handling was observed. No full screen-reader, color-contrast, or authenticated-route audit was performed. | Low | Perform keyboard and screen-reader checks on all role workspaces and verify non-color status communication. |
+| Performance | Not measured | No production profiling or Supabase query timing was performed. Focused lint reports two existing `<img>` optimization warnings in the care-plan detail page. | Low | Measure representative authenticated workflows before changing query or rendering architecture. |
+| External integrations and clinical validation | Not configured / not validated | No live SMS, email, voice, hospital, hardware IoT, OCR, or appointment-system integrations were verified. No clinical validation or regulatory compliance assessment was performed. | Informational | Configure and independently validate integrations and governance before describing them as operational. |
+
+## Security remediation in this workspace
+
+- Added `app/api/escalations/route.ts` to require a valid Supabase bearer token, clinician/admin role, RLS-visible care-plan/task/occurrence records, and a server-recomputed execution state before escalation creation.
+- Updated both manual and page-triggered care-plan escalation flows to use that server route; the client no longer invokes the privileged escalation RPC directly.
+- Added `supabase/migrations/202610060002_smartcare_escalation_authorization.sql` to revoke direct `authenticated` access to the privileged RPC and scope clinician notification reads to accessible care plans.
+- Added `supabase/migrations/202610060003_smartcare_patient_access_visibility.sql` to enable a PATIENT to view grants for their own linked patient record; access management remains administrator-controlled.
+- Per the project owner, migration 001 has been manually applied and `smartcare_audit_log` was confirmed. Migrations 002 and 003 have not been confirmed against the live database. Their presence in this repository does not mean the live database has those policies.
+
+## Validation performed
+
+- **Live database (owner-reported, not independently queried):** migration 001 was manually applied; `public.smartcare_audit_log` was confirmed; a development ADMIN account can sign in. No other migration objects have an independent live query result in this workspace.
+- **Migrations 002/003:** live status UNKNOWN. The project owner states migration 003 has NOT been applied. Neither was applied during this validation checkpoint.
+- **Authenticated tests in this checkpoint:** none. The shared browser remained on `/login`, and no authenticated test session was available. The reported ADMIN login is not counted as a test run by this workspace.
+- **Role-routing source review:** the shell loads `smartcare_user_roles`, routes roles to their workspaces and applies client-side route gates. Existing unit tests verify representative role/path combinations; these do not establish server or RLS authorization.
+- **Patient dashboard source review:** plans/tasks/evidence are queried with the caller's Supabase client; profile uses signed-in email and patient rows reached via active PATIENT access; measurement panel states values are unavailable and no measurement data is synthesized. Upcoming appointment rows are derived from actual upcoming task occurrences with a task type matching `APPOINTMENT`. These flows were not authenticated or live-tested.
+- **Caregiver/clinician patient visibility source review:** the shared dashboard selects care plans and patient IDs without audience-specific frontend filtering. It relies on Supabase RLS to limit returned records. This is not proof that deployed RLS is correct; no authenticated cross-patient access test was possible.
+- **Migration 003 source review:** creates a `SECURITY DEFINER` helper with fixed `search_path`, which checks `auth.uid()` against an active PATIENT access grant; revokes public/anon execution, grants authenticated execution, and replaces the patient-access SELECT policy with self/admin/own-patient-grant branches. Source appears appropriately scoped, but schema compatibility, deployed policy composition, and runtime behavior remain untested. Do not apply automatically.
+- `npm test`: 14 passed, 0 failed (includes escalation request validation, evidence combinations, and timezone/DST boundary cases).
+- `npm run build`: passed, including TypeScript validation and Next.js route generation.
+- `npm run lint`: 0 errors; two existing `<img>` optimization warnings in the care-plan detail page.
+- `git diff --check`: passed.
+- Local API smoke test: unauthenticated `POST /api/escalations` returned `401`.
+- Local responsive sign-in check: no horizontal overflow at 375, 390, 430, 768, 1024, 1280, and 1440 CSS pixels.
+- Protected route check: unauthenticated direct visits to `/`, `/admin`, `/caregiver`, `/clinical`, `/research`, `/care-plans/new`, a care-plan detail URL, and `/tasks/new` settled at `/login`.
+- Patient dashboard and care overview dashboard include profile/access/measurement states and RLS-dependent patient/today-task summaries in source. Browser visual rendering remains unverified because the shared browser has no authenticated session.
+- Supabase diagnostic route now returns `404` in production and avoids exposing raw backend error details in its response.
+
+## Phase status
+
+Phase 1 repository review is complete. Per the project owner, migration 001 was manually applied and `smartcare_audit_log` confirmed; this workspace made no live database query. Migration 002 status is UNKNOWN; the owner says migration 003 has NOT been applied, but it was not independently queried. Phase 2 source changes are reviewed but authenticated validation is blocked. No RLS policy is claimed to work until tested with authenticated roles. Role-by-role access, database behavior, and end-to-end workflows remain unverified.
+
+## Authenticated role checks required
+
+| Role | Checks not yet performed |
+|---|---|
+| ADMIN | Session persistence/logout; role detection/nav; user-role and patient-access grants/revocations; admin-only data/actions; audit/version/notification access; unauthorized API denial. |
+| PATIENT | Own-profile and patient-link resolution; plans/tasks/documents/notifications; dashboard progress/next task/appointment empty and populated states; caregiver grants after migration 003; cross-patient denial and protected-route denial. |
+| CAREGIVER | Access limited to active `smartcare_patient_access` grants; patient revocation reflected in queries; permitted task/alert/escalation actions; direct access to an unlinked patient denied. |
+| CLINICIAN | Patient scoping; plan/task CRUD and version history; evidence/dependency/escalation workflows; authorized notification reads; escalation API role/state checks; analytics scope; admin-only access denied. |
+
+## Phase 2 feature checks
+
+- Patient navigation/profile/measurements were inspected in source only. Measurements are not presented as simulated; the UI states that measurement history is unavailable. No dedicated measurements query/table was found in the inspected application and migration files.
+- Appointment display filters actual upcoming plan-task occurrences using a task type containing `APPOINTMENT`. External appointment data is not displayed or implied.
+- Patient care-team access requests grants by the active patient's linked patient IDs and displays caregiver grant status; names are unavailable, so current UI shows a trailing account-ID fragment. Under migration 001 alone, the policy only exposes the current user's own grant (or admin view); migration 003 adds own-patient grant visibility. Because migration 003 is not applied per owner report and live status is not queried, caregiver-list behavior is not currently validated.
+- Clinician/caregiver shared dashboard has no frontend filtering by role/audience for patient rows. It depends on RLS-filtered care-plan/patient query results; deployed RLS effectiveness is unknown until authenticated tests are run.
+- Authenticated patient dashboard visual/mobile checks and role-specific browser checks remain unperformed.

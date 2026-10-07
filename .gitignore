@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/.smartcare-test-build
 
 # next.js
 /.next/
