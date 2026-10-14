@@ -36,6 +36,20 @@ const [
   { sendNotification },
   { canAccessRolePath, dashboardPathForRole },
   { isEscalationRequest },
+  {
+    authorizeDoctor,
+    canAssignRole,
+    updateDoctorAuthorizationStatus,
+    isDoctorPermittedToPrescribe,
+    canDoctorGrantPatientAccess,
+    grantPatientAccess,
+    revokePatientAccess,
+    canPatientAccessCarePlan,
+    canPatientAccessSubresource,
+    canPatientWriteEvidence,
+    assertDemoIsolation,
+    preventDemoDatabaseWrite,
+  },
 ] = await Promise.all([
   loadModule("evidence-engine.js"),
   loadModule("execution-engine.js"),
@@ -50,6 +64,7 @@ const [
   loadModule("notification-service.js"),
   loadModule("role-navigation.js"),
   loadModule("escalation-request.js"),
+  loadModule("authorization-workflow.js"),
 ]);
 
 const occurrence = {
@@ -588,4 +603,230 @@ test("validates escalation API identifiers and trigger states", () => {
   assert.equal(isEscalationRequest({ ...validRequest, triggerState: "ON_TIME" }), false);
   assert.equal(isEscalationRequest({ ...validRequest, occurrenceId: undefined }), false);
   assert.equal(isEscalationRequest(null), false);
+});
+
+// ============================================================================
+// DOCTOR -> PATIENT ACCESS WORKFLOW & SECURITY TEST SUITE (11 SCENARIOS)
+// ============================================================================
+
+test("1. Admin authorizes doctor with CLINICIAN role", () => {
+  const res = authorizeDoctor("ADMIN", "usr-doc-99");
+  assert.equal(res.success, true);
+  assert.equal(res.roleRecord.role, "CLINICIAN");
+  assert.equal(res.roleRecord.status, "ACTIVE");
+  assert.equal(isDoctorPermittedToPrescribe(res.roleRecord.role, "AUTHORIZED"), true);
+
+  const statusUpdate = updateDoctorAuthorizationStatus("ADMIN", {
+    userId: "usr-doc-99",
+    name: "Dr. Chen",
+    status: "PENDING_APPROVAL",
+  }, "AUTHORIZED");
+  assert.equal(statusUpdate.success, true);
+  assert.equal(statusUpdate.updatedDoctor.status, "AUTHORIZED");
+});
+
+test("2. Non-admin cannot grant doctor privileges", () => {
+  const clinicianAttempt = authorizeDoctor("CLINICIAN", "usr-doc-new");
+  assert.equal(clinicianAttempt.success, false);
+  assert.match(clinicianAttempt.error, /UNAUTHORIZED/);
+
+  const patientAttempt = authorizeDoctor("PATIENT", "usr-doc-new");
+  assert.equal(patientAttempt.success, false);
+
+  const caregiverRoleCheck = canAssignRole("caregiver-1", "CAREGIVER", "target-1", "CLINICIAN");
+  assert.equal(caregiverRoleCheck.permitted, false);
+});
+
+test("3. Doctor cannot self-authorize or elevate own role", () => {
+  const doctorSelfCheck = canAssignRole("doc-1", "CLINICIAN", "doc-1", "ADMIN");
+  assert.equal(doctorSelfCheck.permitted, false);
+
+  const adminSelfCheck = canAssignRole("admin-1", "ADMIN", "admin-1", "ADMIN");
+  assert.equal(adminSelfCheck.permitted, false);
+  assert.match(adminSelfCheck.reason, /SELF_ESCALATION_BLOCKED/);
+});
+
+test("4. Suspended or revoked doctor cannot create or modify plans", () => {
+  assert.equal(isDoctorPermittedToPrescribe("CLINICIAN", "AUTHORIZED"), true);
+  assert.equal(isDoctorPermittedToPrescribe("CLINICIAN", "SUSPENDED"), false);
+  assert.equal(isDoctorPermittedToPrescribe("CLINICIAN", "REVOKED"), false);
+  assert.equal(isDoctorPermittedToPrescribe("CLINICIAN", "PENDING_APPROVAL"), false);
+
+  const suspendedDoctor = { userId: "doc-suspended", name: "Dr. Suspended", status: "SUSPENDED" };
+  const grantAttempt = grantPatientAccess(
+    suspendedDoctor.userId,
+    "CLINICIAN",
+    suspendedDoctor.status,
+    "p-1",
+    "pat-1",
+    "PATIENT",
+    [],
+  );
+  assert.equal(grantAttempt.success, false);
+  assert.match(grantAttempt.error, /DOCTOR_UNAUTHORIZED/);
+});
+
+test("5. Authorized doctor manages patient within permitted scope", () => {
+  const doctorUserId = "doc-authorized-1";
+  const patientId = "patient-scope-1";
+  const existingGrants = [
+    {
+      patientId,
+      userId: doctorUserId,
+      accessRole: "CLINICIAN",
+      active: true,
+      grantedAt: "2026-09-01T00:00:00Z",
+    },
+  ];
+
+  const grantRes = grantPatientAccess(
+    doctorUserId,
+    "CLINICIAN",
+    "AUTHORIZED",
+    patientId,
+    "patient-user-1",
+    "PATIENT",
+    existingGrants,
+  );
+  assert.equal(grantRes.success, true);
+  assert.equal(grantRes.grant.accessRole, "PATIENT");
+  assert.equal(grantRes.grant.active, true);
+  assert.equal(grantRes.grant.patientId, patientId);
+});
+
+test("6. Doctor cannot grant access to unrelated patient or grant admin role", () => {
+  const doctorUserId = "doc-1";
+  const unrelatedPatientId = "patient-unrelated";
+  const existingGrants = [
+    {
+      patientId: "patient-mine",
+      userId: doctorUserId,
+      accessRole: "CLINICIAN",
+      active: true,
+      grantedAt: "2026-09-01T00:00:00Z",
+    },
+  ];
+
+  const unrelatedAttempt = grantPatientAccess(
+    doctorUserId,
+    "CLINICIAN",
+    "AUTHORIZED",
+    unrelatedPatientId,
+    "patient-user-1",
+    "PATIENT",
+    existingGrants,
+  );
+  assert.equal(unrelatedAttempt.success, false);
+  assert.match(unrelatedAttempt.error, /OUT_OF_SCOPE/);
+
+  const escalationAttempt = canDoctorGrantPatientAccess(
+    doctorUserId,
+    "CLINICIAN",
+    "AUTHORIZED",
+    "patient-mine",
+    "CLINICIAN",
+    existingGrants,
+  );
+  assert.equal(escalationAttempt.permitted, false);
+  assert.match(escalationAttempt.reason, /PRIVILEGE_ESCALATION_BLOCKED/);
+});
+
+test("7. Patient reads own assigned care plan", () => {
+  const patientUserId = "patient-usr-77";
+  const plan = { id: "cp-77", patientId: "p-77", name: "Cardiac Regimen", status: "ACTIVE" };
+  const grants = [
+    {
+      patientId: "p-77",
+      userId: patientUserId,
+      accessRole: "PATIENT",
+      active: true,
+      grantedAt: "2026-10-01T00:00:00Z",
+    },
+  ];
+
+  assert.equal(canPatientAccessCarePlan(patientUserId, plan, grants), true);
+});
+
+test("8. Patient cannot read another patient's plan via ID swap", () => {
+  const patientUserId = "patient-usr-77";
+  const otherPatientPlan = { id: "cp-88", patientId: "p-88-other", name: "Other Patient Regimen", status: "ACTIVE" };
+  const grants = [
+    {
+      patientId: "p-77",
+      userId: patientUserId,
+      accessRole: "PATIENT",
+      active: true,
+      grantedAt: "2026-10-01T00:00:00Z",
+    },
+  ];
+
+  assert.equal(canPatientAccessCarePlan(patientUserId, otherPatientPlan, grants), false);
+  assert.equal(canPatientAccessCarePlan("random-user", otherPatientPlan, grants), false);
+  assert.equal(canPatientAccessCarePlan(patientUserId, { ...otherPatientPlan, patientId: "" }, grants), false);
+});
+
+test("9. Revoked access blocks subsequent reads and writes immediately", () => {
+  const doctorId = "doc-1";
+  const patientUserId = "patient-usr-99";
+  const patientId = "p-99";
+  const plan = { id: "cp-99", patientId, name: "Recovery Plan", status: "ACTIVE" };
+  const task = { id: "task-99", carePlanId: "cp-99", name: "Daily Vitals" };
+
+  const grants = [
+    { patientId, userId: doctorId, accessRole: "CLINICIAN", active: true, grantedAt: "2026-09-01T00:00:00Z" },
+    { patientId, userId: patientUserId, accessRole: "PATIENT", active: true, grantedAt: "2026-09-01T00:05:00Z" },
+  ];
+
+  assert.equal(canPatientAccessCarePlan(patientUserId, plan, grants), true);
+  assert.equal(canPatientWriteEvidence(patientUserId, task, plan, grants).permitted, true);
+
+  const revokeRes = revokePatientAccess(
+    doctorId,
+    "CLINICIAN",
+    "AUTHORIZED",
+    patientId,
+    patientUserId,
+    grants,
+  );
+  assert.equal(revokeRes.success, true);
+  assert.equal(revokeRes.revokedGrant.active, false);
+
+  const updatedGrants = grants.map((g) =>
+    g.userId === patientUserId ? revokeRes.revokedGrant : g,
+  );
+
+  assert.equal(canPatientAccessCarePlan(patientUserId, plan, updatedGrants), false);
+  const writeRes = canPatientWriteEvidence(patientUserId, task, plan, updatedGrants);
+  assert.equal(writeRes.permitted, false);
+  assert.match(writeRes.reason, /ACCESS_REVOKED_OR_DENIED/);
+});
+
+test("10. Related tasks, evidence, documents respect access boundaries", () => {
+  const patientUserId = "patient-usr-10";
+  const patientId = "p-10";
+  const authorizedPlan = { id: "cp-10", patientId, name: "Plan 10", status: "ACTIVE" };
+  const unlinkedPlan = { id: "cp-unlinked", patientId: "p-other", name: "Unlinked", status: "ACTIVE" };
+  const task = { id: "task-10", carePlanId: "cp-10", name: "Wound Care" };
+  const unlinkedTask = { id: "task-other", carePlanId: "cp-unlinked", name: "Other Task" };
+
+  const grants = [
+    { patientId, userId: patientUserId, accessRole: "PATIENT", active: true, grantedAt: "2026-09-01T00:00:00Z" },
+  ];
+
+  assert.equal(canPatientAccessSubresource(patientUserId, task, authorizedPlan, grants), true);
+  assert.equal(canPatientAccessSubresource(patientUserId, unlinkedTask, authorizedPlan, grants), false);
+  assert.equal(canPatientAccessSubresource(patientUserId, task, unlinkedPlan, grants), false);
+});
+
+test("11. Demo actions do not mutate production data", () => {
+  const demoCheck = assertDemoIsolation(true, "insert");
+  assert.equal(demoCheck.safe, true);
+  assert.equal(demoCheck.isolated, true);
+
+  assert.throws(
+    () => preventDemoDatabaseWrite(true, "insert into care_plans"),
+    /DEMO_MUTATION_PREVENTED/,
+  );
+
+  assert.doesNotThrow(() => preventDemoDatabaseWrite(false, "insert into care_plans"));
 });

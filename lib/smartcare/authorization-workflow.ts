@@ -53,7 +53,7 @@ export interface SubresourceRecord {
 export function authorizeDoctor(
   actorRole: ApplicationRole,
   targetUserId: string,
-  existingRoles: UserRoleRecord[] = [],
+  _existingRoles: UserRoleRecord[] = [],
 ): { success: boolean; error?: string; roleRecord?: UserRoleRecord } {
   if (actorRole !== "ADMIN") {
     return {
@@ -85,7 +85,7 @@ export function canAssignRole(
   actorUserId: string,
   actorRole: ApplicationRole,
   targetUserId: string,
-  requestedRole: ApplicationRole,
+  _requestedRole: ApplicationRole,
 ): { permitted: boolean; reason?: string } {
   if (actorRole !== "ADMIN") {
     return {
@@ -340,7 +340,7 @@ export function canPatientWriteEvidence(
  */
 export function assertDemoIsolation(
   isDemo: boolean,
-  operation: "insert" | "update" | "delete" | "rpc",
+  _operation: "insert" | "update" | "delete" | "rpc",
 ): { safe: boolean; isolated: boolean; error?: string } {
   if (isDemo) {
     return {
