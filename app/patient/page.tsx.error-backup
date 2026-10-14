@@ -1,0 +1,128 @@
+
+                  <dt className="text-slate-400">Name</dt>
+
+                  <dd className="font-medium">
+
+                    {loading ? "Loading…" : patientRecords.map((patient) => patient.full_name).join(", ") || "No patient profile is linked to this account."}
+
+                  </dd>
+
+                </div>
+
+                <div>
+
+                  <dt className="text-slate-400">Account email</dt>
+
+                  <dd className="break-all font-medium">{session?.user.email || "Unavailable"}</dd>
+
+                </div>
+
+                <div>
+
+                  <dt className="text-slate-400">Privacy and access</dt>
+
+                  <dd className="text-slate-300">
+
+                    Care information is limited by your account’s assigned access. Contact your care team to request a correction or access change.
+
+                  </dd>
+
+                </div>
+
+              </dl>
+
+            </article>
+
+
+
+            <article id="care-team" className="scroll-mt-32 rounded-2xl border border-white/[0.09] bg-[#101426]/90 p-6 shadow-xl shadow-black/20 backdrop-blur-xl">
+
+              <h2 className="text-xl font-semibold">Care team access</h2>
+
+              <p className="mt-2 text-sm text-slate-400">
+
+                Access grants are shown from the patient-access records available to this account. Names and direct access controls are not available in the current profile data.
+
+              </p>
+
+              {loading ? (
+
+                <p className="mt-4 text-sm text-slate-400">Loading access information…</p>
+
+              ) : accessGrants.filter((grant) => grant.access_role === "CAREGIVER").length > 0 ? (
+
+                <ul className="mt-4 space-y-3">
+
+                  {accessGrants
+
+                    .filter((grant) => grant.access_role === "CAREGIVER")
+
+                    .map((grant) => (
+
+                      <li key={`${grant.patient_id}-${grant.user_id}`} className="rounded-xl bg-[#090b15] p-4">
+
+                        <p className="font-medium">Caregiver account · {grant.user_id.slice(-8)}</p>
+
+                        <p className="mt-1 text-sm text-slate-400">
+
+                          {grant.active ? "Access active" : "Access inactive"} · Granted {new Date(grant.granted_at).toLocaleDateString()}
+
+                        </p>
+
+                      </li>
+
+                    ))}
+
+                </ul>
+
+              ) : (
+
+                <p className="mt-4 rounded-xl bg-[#090b15] p-4 text-sm text-slate-400">
+
+                  No caregiver access is visible to this account. Ask your care team to confirm current grants.
+
+                </p>
+
+              )}
+
+            </article>
+
+
+
+            <article id="measurements" className="scroll-mt-32 rounded-2xl border border-white/[0.09] bg-[#101426]/90 p-6 shadow-xl shadow-black/20 backdrop-blur-xl">
+
+              <h2 className="text-xl font-semibold">Measurements</h2>
+
+              <p className="mt-2 text-sm text-slate-400">
+
+                No measurement history is connected to this account. SmartCare does not display simulated or invented clinical measurements.
+
+              </p>
+
+            </article>
+
+          </div>
+
+        </section>
+
+
+
+        <footer className="mt-8 rounded-2xl border border-white/[0.09] bg-[#101426]/90 p-6 shadow-xl shadow-black/20 backdrop-blur-xl">
+
+          <h2 className="font-semibold">Need help?</h2>
+
+          <p className="mt-1 text-sm text-slate-400">
+
+            Contact your care team if an instruction is unclear. SmartCare organizes your care plan but does not replace medical advice.
+
+          </p>
+
+        </footer>
+
+      </div>
+
+    </main>
+
+  );
+
+}

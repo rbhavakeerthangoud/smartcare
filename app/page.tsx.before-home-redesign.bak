@@ -1,0 +1,748 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import BrandMark from "@/app/components/brand-mark";
+import { useSmartCareAuth } from "@/lib/supabase/auth-context";
+import { dashboardPathForRole } from "@/lib/smartcare/role-navigation";
+
+export default function PublicHomePage() {
+  const { session, role, loading, signOut } = useSmartCareAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const userDashboard = role ? dashboardPathForRole(role) : null;
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      {/* Top Banner if Signed In */}
+      {!loading && session && role && (
+        <aside
+          aria-label="Current session"
+          className="border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-center text-xs font-medium text-emerald-950 sm:px-6"
+        >
+          <span className="inline-flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
+            <span>
+              Signed in as <strong className="font-semibold uppercase tracking-wider">{role}</strong>
+            </span>
+            <span className="text-emerald-300">·</span>
+            <Link
+              href={userDashboard || "/patient"}
+              className="font-semibold underline hover:text-emerald-800"
+            >
+              Open Your Workspace →
+            </Link>
+          </span>
+        </aside>
+      )}
+
+      {/* Public Header */}
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3.5 sm:px-6 lg:px-8">
+          <Link href="/" aria-label="SmartCare Homepage" className="shrink-0">
+            <BrandMark />
+          </Link>
+
+          {/* Desktop Navigation */}
+          <nav aria-label="Main Public Navigation" className="hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex">
+            <a href="#overview" className="transition-colors hover:text-emerald-800">
+              Overview
+            </a>
+            <a href="#capabilities" className="transition-colors hover:text-emerald-800">
+              Capabilities
+            </a>
+            <a href="#preview" className="transition-colors hover:text-emerald-800">
+              Experience
+            </a>
+            <a href="#portals" className="transition-colors hover:text-emerald-800">
+              Portals
+            </a>
+            <a href="#research" className="transition-colors hover:text-emerald-800">
+              Analytics
+            </a>
+          </nav>
+
+          {/* Right Action / Auth */}
+          <div className="flex items-center gap-3">
+            {!loading && session && role ? (
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Link
+                  href={userDashboard || "/patient"}
+                  className="inline-flex min-h-10 items-center rounded-lg bg-emerald-800 px-4 text-xs font-semibold uppercase tracking-wider text-white shadow-sm transition hover:bg-emerald-900"
+                >
+                  Go to {role.toLowerCase()} portal
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => void signOut()}
+                  className="min-h-10 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                >
+                  Sign out
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/login"
+                  className="inline-flex min-h-10 items-center rounded-lg bg-emerald-800 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900"
+                >
+                  Sign in
+                </Link>
+              </div>
+            )}
+
+            {/* Mobile Hamburger Button */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((open) => !open)}
+              aria-label="Toggle navigation menu"
+              className="grid h-10 w-10 place-items-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-100 md:hidden"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5" strokeWidth="2">
+                {mobileMenuOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Dropdown Menu */}
+        {mobileMenuOpen && (
+          <nav aria-label="Mobile Navigation" className="border-t border-slate-200 bg-white px-4 py-4 md:hidden space-y-2">
+            <a
+              href="#overview"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            >
+              Overview
+            </a>
+            <a
+              href="#capabilities"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            >
+              Capabilities
+            </a>
+            <a
+              href="#preview"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            >
+              Experience
+            </a>
+            <a
+              href="#portals"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            >
+              Portals
+            </a>
+            <a
+              href="#research"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            >
+              Analytics
+            </a>
+            {!session && (
+              <div className="pt-2">
+                <Link
+                  href="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block w-full rounded-lg bg-emerald-800 px-4 py-2.5 text-center text-sm font-semibold text-white"
+                >
+                  Sign in
+                </Link>
+              </div>
+            )}
+          </nav>
+        )}
+      </header>
+
+      <main>
+        {/* Hero Section */}
+        <section id="overview" className="relative isolate overflow-hidden bg-white px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+          <div className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80" aria-hidden="true">
+            <div
+              className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-emerald-200 to-teal-400 opacity-20 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem]"
+              style={{
+                clipPath:
+                  "polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)",
+              }}
+            />
+          </div>
+
+          <div className="mx-auto max-w-4xl text-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-800">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-700" />
+              Connected Healthcare Platform
+            </div>
+
+            <h1 className="mt-6 text-4xl font-semibold tracking-tight text-slate-950 sm:text-6xl sm:leading-[1.12]">
+              Post-discharge care,{" "}
+              <span className="text-emerald-800">thoughtfully connected.</span>
+            </h1>
+
+            <p className="mt-6 text-lg leading-8 text-slate-600 sm:text-xl">
+              SmartCare bridges the critical gap between hospital discharge and daily home recovery.
+              Prescribed regimens, multi-source verification, and automated clinical escalations united in one calm, secure workspace.
+            </p>
+
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+              <a
+                href="#portals"
+                className="inline-flex min-h-12 items-center rounded-xl bg-emerald-800 px-6 font-semibold text-white shadow-sm transition hover:bg-emerald-900"
+              >
+                Explore Healthcare Portals ↓
+              </a>
+              <Link
+                href="/login"
+                className="inline-flex min-h-12 items-center rounded-xl border border-slate-300 bg-white px-6 font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+              >
+                Sign In to SmartCare →
+              </Link>
+            </div>
+
+            {/* Platform Highlights Bar */}
+            <div className="mt-16 grid grid-cols-2 gap-4 border-t border-slate-100 pt-8 sm:grid-cols-4 sm:gap-6 text-left">
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Portals</p>
+                <p className="mt-1 text-base font-semibold text-slate-900">Patient & Doctor</p>
+                <p className="text-xs text-slate-500">Caregiver & Hospital Admin</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Execution</p>
+                <p className="mt-1 text-base font-semibold text-slate-900">Deterministic</p>
+                <p className="text-xs text-slate-500">Time-window verification</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Escalation</p>
+                <p className="mt-1 text-base font-semibold text-slate-900">Automated Triage</p>
+                <p className="text-xs text-slate-500">Early conflict detection</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Governance</p>
+                <p className="mt-1 text-base font-semibold text-slate-900">Immutable Audit</p>
+                <p className="text-xs text-slate-500">Versioned care-plan snapshots</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Core Capabilities */}
+        <section id="capabilities" className="border-t border-slate-200 bg-slate-50 px-4 py-20 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-800">
+                Core Capabilities
+              </p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+                Built for clinical precision and patient peace of mind.
+              </h2>
+              <p className="mt-4 text-base text-slate-600">
+                Post-discharge care fails when instructions are unclear or unmonitored. SmartCare structures recovery into clear, verifiable activities.
+              </p>
+            </div>
+
+            <div className="mt-14 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+              {/* Feature 1 */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm transition hover:shadow-md">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-6 w-6" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h3 className="mt-5 text-lg font-semibold text-slate-950">Structured Care Plans</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Prescribe exact medication windows, wound-care protocols, physical therapy exercises, and clinical appointment milestones.
+                </p>
+              </div>
+
+              {/* Feature 2 */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm transition hover:shadow-md">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-6 w-6" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="mt-5 text-lg font-semibold text-slate-950">Multi-Source Evidence</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Reconciles patient reports, family caregiver confirmations, connected IoT vitals (blood pressure, heart rate), and diagnostic lab uploads.
+                </p>
+              </div>
+
+              {/* Feature 3 */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm transition hover:shadow-md">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-6 w-6" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <h3 className="mt-5 text-lg font-semibold text-slate-950">Intelligent Escalations</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Deterministic rules flag late, missed, or conflicting task executions immediately, routing notifications to caregivers or clinicians without alarm fatigue.
+                </p>
+              </div>
+
+              {/* Feature 4 */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm transition hover:shadow-md">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-6 w-6" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                <h3 className="mt-5 text-lg font-semibold text-slate-950">Care-Team Alignment</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Granular role permissions ensure patient privacy while enabling caregivers to support daily tasks and clinicians to oversee therapeutic outcomes.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Visual Product Preview Section */}
+        <section id="preview" className="border-t border-slate-200 bg-white px-4 py-20 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="text-center max-w-3xl mx-auto">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-800">
+                Visual Experience
+              </p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+                A calm, purpose-built interface for every stakeholder.
+              </h2>
+              <p className="mt-4 text-base text-slate-600">
+                Designed with high-contrast accessibility, uncluttered cards, and clear status communication to prevent misinterpretations during critical recovery windows.
+              </p>
+            </div>
+
+            {/* Preview Grid */}
+            <div className="mt-14 grid gap-8 lg:grid-cols-3">
+              {/* Card 1: Patient Experience Preview */}
+              <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/50 p-6 shadow-sm">
+                <div>
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-emerald-800">Patient Dashboard</span>
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-950">85% Complete</span>
+                  </div>
+                  <div className="mt-5 space-y-3">
+                    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-slate-900">Metoprolol 25mg</p>
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[0.7rem] font-semibold text-emerald-800">Completed</span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">Window: 08:00 – 10:00 · Verified on time</p>
+                    </div>
+                    <div className="rounded-xl border border-teal-200 bg-teal-50/70 p-3.5 shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-teal-950">Blood Pressure Reading</p>
+                        <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[0.7rem] font-semibold text-teal-900">Next activity</span>
+                      </div>
+                      <p className="mt-1 text-xs text-teal-800">Window: 14:00 – 16:00 · Awaiting IoT reading</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-slate-900">Cardiology Follow-Up</p>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[0.7rem] font-semibold text-slate-700">Upcoming</span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">Scheduled: Thursday 10:30 AM</p>
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-6 border-t border-slate-200 pt-3 text-xs text-slate-500">
+                  Live in the <strong className="text-slate-800 font-medium">Patient Recovery Portal</strong>
+                </p>
+              </div>
+
+              {/* Card 2: Doctor Experience Preview */}
+              <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/50 p-6 shadow-sm">
+                <div>
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-emerald-800">Clinical Overview</span>
+                    <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-medium text-rose-900">1 Needs Review</span>
+                  </div>
+                  <div className="mt-5 space-y-3">
+                    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-slate-900">Patient J. Doe (Post-PCI)</p>
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[0.7rem] font-semibold text-emerald-800">92% Adherence</span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">All 3 morning occurrences reconciled on time</p>
+                    </div>
+                    <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3.5 shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-rose-950">Patient M. Smith (CABG)</p>
+                        <span className="rounded-full bg-rose-200 px-2 py-0.5 text-[0.7rem] font-semibold text-rose-900">Escalation</span>
+                      </div>
+                      <p className="mt-1 text-xs text-rose-800">Missed afternoon anticoagulant window · Alert triggered</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-slate-900">Dependency Check</p>
+                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[0.7rem] font-semibold text-amber-900">Prerequisite</span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">Wound care gated on dressing delivery</p>
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-6 border-t border-slate-200 pt-3 text-xs text-slate-500">
+                  Live in the <strong className="text-slate-800 font-medium">Doctor & Clinical Portal</strong>
+                </p>
+              </div>
+
+              {/* Card 3: Governance & Security Preview */}
+              <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/50 p-6 shadow-sm">
+                <div>
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-emerald-800">Governance & Audit</span>
+                    <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-800">Immutable</span>
+                  </div>
+                  <div className="mt-5 space-y-3">
+                    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                      <p className="text-xs font-mono text-slate-500">AUDIT_LOG #84920</p>
+                      <p className="mt-0.5 text-sm font-semibold text-slate-900">Plan Modified · Version 3 Saved</p>
+                      <p className="text-xs text-slate-500">Captured snapshot with author ID and change reason</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                      <p className="text-xs font-mono text-slate-500">ACCESS_CONTROL</p>
+                      <p className="mt-0.5 text-sm font-semibold text-slate-900">Caregiver Access Active</p>
+                      <p className="text-xs text-slate-500">Scoped strictly to patient record via Row-Level Security</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                      <p className="text-xs font-mono text-slate-500">STORAGE_POLICY</p>
+                      <p className="mt-0.5 text-sm font-semibold text-slate-900">Private Document Vault</p>
+                      <p className="text-xs text-slate-500">Signed 1-hour URLs for diagnostic lab reports</p>
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-6 border-t border-slate-200 pt-3 text-xs text-slate-500">
+                  Live in the <strong className="text-slate-800 font-medium">Hospital Admin Operations Center</strong>
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Dedicated Portals Section */}
+        <section id="portals" className="border-t border-slate-200 bg-slate-50 px-4 py-20 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-800">
+                Healthcare Portals
+              </p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+                Choose your SmartCare portal.
+              </h2>
+              <p className="mt-4 text-base text-slate-600">
+                SmartCare enforces strict, role-specific access controls. Select your role to enter your authorized workspace or sign in with your healthcare credentials.
+              </p>
+            </div>
+
+            <div className="mt-14 grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+              {/* Portal 1: Patient */}
+              <div className="flex flex-col justify-between rounded-2xl border-2 border-emerald-100 bg-white p-7 shadow-sm transition hover:border-emerald-300 hover:shadow-md">
+                <div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-700" />
+                    Patient
+                  </span>
+                  <h3 className="mt-5 text-xl font-semibold text-slate-950">Patient Recovery Portal</h3>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">
+                    View your personalized daily care schedule, report taken medications, check upcoming appointments, and see your care team.
+                  </p>
+                  <ul className="mt-6 space-y-2 text-xs text-slate-500">
+                    <li className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                      Daily recovery plan progress
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                      Activity self-report verification
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                      Connected caregiver access
+                    </li>
+                  </ul>
+                </div>
+                <div className="mt-8 border-t border-slate-100 pt-5">
+                  <Link
+                    href={role === "PATIENT" || role === "ADMIN" ? "/patient" : "/login?redirect=/patient"}
+                    className="inline-flex w-full min-h-11 items-center justify-center rounded-xl bg-emerald-800 px-4 text-sm font-semibold text-white shadow-xs transition hover:bg-emerald-900"
+                  >
+                    {role === "PATIENT" || role === "ADMIN" ? "Enter Patient Portal →" : "Sign in as Patient →"}
+                  </Link>
+                </div>
+              </div>
+
+              {/* Portal 2: Clinician / Doctor */}
+              <div className="flex flex-col justify-between rounded-2xl border-2 border-emerald-100 bg-white p-7 shadow-sm transition hover:border-emerald-300 hover:shadow-md">
+                <div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-700" />
+                    Doctor & Clinician
+                  </span>
+                  <h3 className="mt-5 text-xl font-semibold text-slate-950">Clinical Workspace</h3>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">
+                    Prescribe recovery plans, oversee adherence trends across active patients, inspect task dependencies, and resolve escalated alerts.
+                  </p>
+                  <ul className="mt-6 space-y-2 text-xs text-slate-500">
+                    <li className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                      Active patient queue monitoring
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                      Plan creation & task scheduling
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                      Automated clinical escalations
+                    </li>
+                  </ul>
+                </div>
+                <div className="mt-8 border-t border-slate-100 pt-5">
+                  <Link
+                    href={role === "CLINICIAN" || role === "ADMIN" ? "/clinical" : "/login?redirect=/clinical"}
+                    className="inline-flex w-full min-h-11 items-center justify-center rounded-xl bg-emerald-800 px-4 text-sm font-semibold text-white shadow-xs transition hover:bg-emerald-900"
+                  >
+                    {role === "CLINICIAN" || role === "ADMIN" ? "Enter Clinical Portal →" : "Sign in as Clinician →"}
+                  </Link>
+                </div>
+              </div>
+
+              {/* Portal 3: Caregiver */}
+              <div className="flex flex-col justify-between rounded-2xl border-2 border-emerald-100 bg-white p-7 shadow-sm transition hover:border-emerald-300 hover:shadow-md">
+                <div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-700" />
+                    Caregiver
+                  </span>
+                  <h3 className="mt-5 text-xl font-semibold text-slate-950">Caregiver Workspace</h3>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">
+                    Stay aligned with your loved one&apos;s daily recovery instructions, submit caregiver confirmation reports, and track safety alerts.
+                  </p>
+                  <ul className="mt-6 space-y-2 text-xs text-slate-500">
+                    <li className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                      Authorized patient care overview
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                      Independent task confirmation
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                      Missed activity notifications
+                    </li>
+                  </ul>
+                </div>
+                <div className="mt-8 border-t border-slate-100 pt-5">
+                  <Link
+                    href={role === "CAREGIVER" || role === "ADMIN" ? "/caregiver" : "/login?redirect=/caregiver"}
+                    className="inline-flex w-full min-h-11 items-center justify-center rounded-xl bg-emerald-800 px-4 text-sm font-semibold text-white shadow-xs transition hover:bg-emerald-900"
+                  >
+                    {role === "CAREGIVER" || role === "ADMIN" ? "Enter Caregiver Portal →" : "Sign in as Caregiver →"}
+                  </Link>
+                </div>
+              </div>
+
+              {/* Portal 4: Hospital Admin */}
+              <div className="flex flex-col justify-between rounded-2xl border-2 border-emerald-100 bg-white p-7 shadow-sm transition hover:border-emerald-300 hover:shadow-md">
+                <div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-700" />
+                    Hospital Admin
+                  </span>
+                  <h3 className="mt-5 text-xl font-semibold text-slate-950">Hospital Operations</h3>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">
+                    Oversee facility-wide account provisioning, assign patient access grants, monitor audit trails, and manage plan version histories.
+                  </p>
+                  <ul className="mt-6 space-y-2 text-xs text-slate-500">
+                    <li className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                      Role-based user management
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                      Patient access permissions
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                      Immutable audit log inspection
+                    </li>
+                  </ul>
+                </div>
+                <div className="mt-8 border-t border-slate-100 pt-5">
+                  <Link
+                    href={role === "ADMIN" ? "/admin" : "/login?redirect=/admin"}
+                    className="inline-flex w-full min-h-11 items-center justify-center rounded-xl bg-emerald-800 px-4 text-sm font-semibold text-white shadow-xs transition hover:bg-emerald-900"
+                  >
+                    {role === "ADMIN" ? "Enter Operations Center →" : "Sign in as Admin →"}
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Clinical Research & Quality Section */}
+        <section id="research" className="border-t border-slate-200 bg-white px-4 py-20 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-800">
+                  Clinical Quality & Research
+                </p>
+                <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+                  Objective adherence analytics backed by mathematical models.
+                </h2>
+                <p className="mt-4 text-base leading-7 text-slate-600">
+                  SmartCare evaluates care plan adherence without fabricated numbers or subjective guesses.
+                  Filter across 7-day, 30-day, or longitudinal cohorts, review temporal classifications across IANA timezones, and export raw data to CSV for clinical analysis.
+                </p>
+                <div className="mt-8 flex flex-wrap gap-4">
+                  <Link
+                    href={role === "CLINICIAN" || role === "ADMIN" ? "/research" : "/login?redirect=/research"}
+                    className="inline-flex min-h-11 items-center rounded-xl bg-emerald-800 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900"
+                  >
+                    Open Research Analytics →
+                  </Link>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
+                <h4 className="text-sm font-semibold text-slate-900">Research & Adherence Metrics Available</h4>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                    <p className="text-xs text-slate-500">Temporal Window</p>
+                    <p className="mt-1 font-semibold text-slate-900">On-time vs Late</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                    <p className="text-xs text-slate-500">Reconciliation</p>
+                    <p className="mt-1 font-semibold text-slate-900">Evidence Conflict Rate</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                    <p className="text-xs text-slate-500">Dependencies</p>
+                    <p className="mt-1 font-semibold text-slate-900">Blocked Task Detection</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                    <p className="text-xs text-slate-500">Resolution Speed</p>
+                    <p className="mt-1 font-semibold text-slate-900">Average Escalation Time</p>
+                  </div>
+                </div>
+                <p className="mt-4 text-xs text-slate-500">
+                  Includes full CSV dataset export for authorized clinicians and institutional investigators.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {/* Public Footer */}
+      <footer className="border-t border-slate-200 bg-white px-4 py-12 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
+            <div className="max-w-sm">
+              <BrandMark />
+              <p className="mt-3 text-xs leading-5 text-slate-600">
+                Care, connected. A calm, coordinated clinical recovery platform connecting patients, family caregivers, physicians, and hospitals.
+              </p>
+              <p className="mt-4 text-[0.7rem] text-slate-400">
+                Encrypted in transit and at rest · Supabase PostgreSQL Row-Level Security
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 text-xs">
+              <div>
+                <p className="font-semibold uppercase tracking-wider text-slate-900">Portals</p>
+                <ul className="mt-3 space-y-2 text-slate-600">
+                  <li>
+                    <Link href="/patient" className="hover:text-emerald-800">
+                      Patient Portal
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/clinical" className="hover:text-emerald-800">
+                      Doctor & Clinical Portal
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/caregiver" className="hover:text-emerald-800">
+                      Caregiver Portal
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/admin" className="hover:text-emerald-800">
+                      Hospital Admin
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+
+              <div>
+                <p className="font-semibold uppercase tracking-wider text-slate-900">Capabilities</p>
+                <ul className="mt-3 space-y-2 text-slate-600">
+                  <li>
+                    <a href="#capabilities" className="hover:text-emerald-800">
+                      Care Plans & Regimens
+                    </a>
+                  </li>
+                  <li>
+                    <a href="#capabilities" className="hover:text-emerald-800">
+                      Multi-Source Verification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="#capabilities" className="hover:text-emerald-800">
+                      Clinical Escalations
+                    </a>
+                  </li>
+                  <li>
+                    <Link href="/research" className="hover:text-emerald-800">
+                      Research Analytics
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+
+              <div>
+                <p className="font-semibold uppercase tracking-wider text-slate-900">Security & Sign In</p>
+                <ul className="mt-3 space-y-2 text-slate-600">
+                  <li>
+                    <Link href="/login" className="hover:text-emerald-800">
+                      Healthcare Account Sign In
+                    </Link>
+                  </li>
+                  <li>
+                    <span className="text-slate-400">Row-Level Security</span>
+                  </li>
+                  <li>
+                    <span className="text-slate-400">Audit Trail Enabled</span>
+                  </li>
+                  <li>
+                    <span className="inline-flex items-center gap-1.5 text-emerald-800 font-medium">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                      Systems Operational
+                    </span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-10 border-t border-slate-100 pt-6 text-[0.7rem] text-slate-500 sm:flex sm:items-center sm:justify-between">
+            <p>
+              © {new Date().getFullYear()} SmartCare Health Platform. All rights reserved.
+            </p>
+            <p className="mt-2 sm:mt-0 max-w-xl text-slate-400">
+              Disclaimer: SmartCare is a care-plan support platform and does not replace professional medical advice or emergency medical services.
+            </p>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
