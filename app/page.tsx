@@ -1,622 +1,759 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase/client";
-import { evaluateExecution } from "@/lib/smartcare/execution-engine";
-import type { ExecutionState } from "@/lib/smartcare/types";
+import { useState } from "react";
 import { useSmartCareAuth } from "@/lib/supabase/auth-context";
 
-interface CarePlan {
-  id: string;
-  name: string;
-  description: string | null;
-  status: string;
-  start_date: string;
-  end_date: string | null;
-}
+const platformFeatures = [
+  {
+    number: "01",
+    label: "STRUCTURE",
+    title: "Care plans with clear purpose.",
+    description:
+      "Organize clinician instructions, scheduled activities, and recurrence protocols in one structured workspace.",
+    icon: "✳",
+  },
+  {
+    number: "02",
+    label: "DAILY ROUTINES",
+    title: "Time-aware execution windows.",
+    description:
+      "Define allowed start and end times across time zones to keep recovery activities on track without confusion.",
+    icon: "◷",
+  },
+  {
+    number: "03",
+    label: "MULTI-SOURCE VERIFICATION",
+    title: "Verified recovery evidence.",
+    description:
+      "Capture patient self-reports, caregiver confirmations, diagnostic documents, and IoT device events transparently.",
+    icon: "↗",
+  },
+  {
+    number: "04",
+    label: "CLINICAL OVERSIGHT",
+    title: "Deterministic escalations.",
+    description:
+      "Automatically route review alerts to clinical teams when activities are missed, late, or conflicting with prerequisite tasks.",
+    icon: "⚕",
+  },
+];
 
-interface Task {
-  id: string;
-  care_plan_id: string;
-  name: string;
-  type: string;
-  verification_method: string | null;
-}
+const steps = [
+  {
+    number: "01",
+    title: "Authorize & Credential",
+    description:
+      "Hospital administrators credential and authorize licensed doctors to establish post-discharge care protocols on SmartCare.",
+  },
+  {
+    number: "02",
+    title: "Prescribe & Grant Access",
+    description:
+      "Authorized doctors create personalized care plans with time-windowed activities and grant their assigned patients direct access.",
+  },
+  {
+    number: "03",
+    title: "Execute & Record Evidence",
+    description:
+      "Patients complete daily routines with integrated family caregiving coordination, submitting patient reports, photo documents, or device data.",
+  },
+  {
+    number: "04",
+    title: "Proactive Follow-Up",
+    description:
+      "The system detects execution deviations, missed windows, or conflicts and immediately alerts the clinical oversight team.",
+  },
+];
 
-interface Occurrence {
-  id: string;
-  task_id: string;
-  occurrence_date: string;
-  time_zone: string | null;
-  allowed_start_time: string | null;
-  allowed_end_time: string | null;
-  status: string | null;
-  completed_at: string | null;
-  completion_source: string | null;
-}
+const portalCards = [
+  {
+    icon: "✳",
+    number: "01",
+    roleTag: "HOSPITAL ADMIN",
+    title: "Hospital Admin Portal",
+    description:
+      "Authorize licensed medical staff, manage doctor directories, oversee facility-wide compliance, audit administrative activity, and govern patient access permissions.",
+    href: "/admin",
+    action: "Enter admin portal",
+  },
+  {
+    icon: "⚕",
+    number: "02",
+    roleTag: "DOCTOR / CLINICAL",
+    title: "Doctor & Clinical Portal",
+    description:
+      "Prescribe evidence-based recovery plans, monitor patient cohort execution, coordinate caregiving support, inspect dependencies, and resolve clinical safety alerts.",
+    href: "/clinical",
+    action: "Enter doctor portal",
+  },
+  {
+    icon: "♡",
+    number: "03",
+    roleTag: "PATIENT",
+    title: "Patient Recovery Portal",
+    description:
+      "Follow your personalized daily recovery schedule, log prescribed medications and vitals, submit verified evidence, and stay connected with your care team.",
+    href: "/patient",
+    action: "Enter patient portal",
+  },
+];
 
-interface EventRecord {
-  occurrence_id: string | null;
-  event_time: string;
-  source: string;
-  value: string | null;
-  confidence: number | null;
-  notes: string | null;
-}
+const principles = [
+  {
+    number: "01",
+    title: "Clarity first",
+    description:
+      "Information is structured around the patient's recovery timeline with explicit execution windows and clear guidance.",
+  },
+  {
+    number: "02",
+    title: "Access with purpose",
+    description:
+      "Database-level Row-Level Security ensures patients, family caregivers, and physicians only access authorized medical records.",
+  },
+  {
+    number: "03",
+    title: "Clinical safety & governance",
+    description:
+      "SmartCare coordinates care without altering medical prescriptions; every change is immutably logged for clinical audit.",
+  },
+];
 
-interface DocumentRecord {
-  occurrence_id: string | null;
-  uploaded_at: string;
-  file_name: string;
-}
+const faqs = [
+  {
+    question: "What is SmartCare?",
+    answer:
+      "SmartCare is a secure post-discharge care coordination platform that organizes clinician-prescribed care plans, scheduled recovery activities, verification evidence, and clinical escalation workflows.",
+  },
+  {
+    question: "Who can use SmartCare?",
+    answer:
+      "SmartCare provides dedicated workspaces for four roles: Patients, Family Caregivers, Doctors/Clinicians, and Hospital Administrators, each with role-specific access permissions.",
+  },
+  {
+    question: "How does task verification work?",
+    answer:
+      "Depending on the clinician's configuration, activities are verified through patient self-reporting, caregiver secondary confirmation, diagnostic document uploads, or connected IoT health device events.",
+  },
+  {
+    question: "What happens if a scheduled activity is missed?",
+    answer:
+      "If an activity deadline passes without valid completion evidence, the system deterministically flags the task and can route an automated escalation alert to the clinical oversight team.",
+  },
+  {
+    question: "Does SmartCare replace medical advice?",
+    answer:
+      "No. SmartCare is a care-plan coordination platform. Medical diagnosis, treatment decisions, and prescriptions remain strictly the responsibility of qualified healthcare professionals.",
+  },
+  {
+    question: "How is patient data protected?",
+    answer:
+      "Patient data is protected using database-level Row-Level Security (RLS) in Supabase PostgreSQL, ensuring encrypted storage, strict permission boundaries, and immutable audit logging.",
+  },
+];
 
-interface PatientAccess {
-  patient_id: string;
-  user_id: string;
-  access_role: "PATIENT" | "CAREGIVER" | "CLINICIAN";
-  active: boolean;
-  granted_at: string;
-}
-
-interface PatientRecord {
-  id: string;
-  full_name: string;
-}
-
-function toLocalDate(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function addDays(date: Date, days: number) {
-  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  next.setDate(next.getDate() + days);
-  return toLocalDate(next);
-}
-
-function formatWindow(occurrence: Occurrence) {
-  if (!occurrence.allowed_start_time && !occurrence.allowed_end_time) {
-    return "Time not specified";
-  }
-  return `${occurrence.allowed_start_time?.slice(0, 5) || "Any time"}${
-    occurrence.allowed_end_time
-      ? ` – ${occurrence.allowed_end_time.slice(0, 5)}`
-      : ""
-  }`;
-}
-
-function stateLabel(state: ExecutionState) {
-  switch (state) {
-    case "ON_TIME":
-      return "Completed on time";
-    case "LATE":
-      return "Completed late";
-    case "REPORTED":
-      return "Reported complete";
-    case "MISSED":
-      return "Needs your attention";
-    case "CONFLICTING":
-      return "Needs review";
-    case "UNCONFIRMED":
-      return "Waiting for confirmation";
-    case "INSUFFICIENT_EVIDENCE":
-      return "Needs review";
-    case "BEFORE_WINDOW":
-    case "PENDING":
-      return "Coming up";
-    case "DOCUMENT_RECORDED":
-      return "Evidence received";
-    default:
-      return "In progress";
-  }
-}
-
-function completed(state: ExecutionState) {
-  return ["ON_TIME", "LATE", "REPORTED"].includes(state);
-}
-
-function stateStyle(state: ExecutionState) {
-  if (completed(state)) return "bg-emerald-50 text-emerald-800";
-  if (["MISSED", "CONFLICTING"].includes(state)) {
-    return "bg-rose-50 text-rose-800";
-  }
-  if (["UNCONFIRMED", "INSUFFICIENT_EVIDENCE"].includes(state)) {
-    return "bg-amber-50 text-amber-900";
-  }
-  return "bg-slate-100 text-slate-700";
-}
-
-export default function PatientDashboard() {
-  const { session } = useSmartCareAuth();
-  const userId = session?.user.id;
-  const [plans, setPlans] = useState<CarePlan[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
-  const [events, setEvents] = useState<EventRecord[]>([]);
-  const [documents, setDocuments] = useState<DocumentRecord[]>([]);
-  const [patientRecords, setPatientRecords] = useState<PatientRecord[]>([]);
-  const [accessGrants, setAccessGrants] = useState<PatientAccess[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [reload, setReload] = useState(0);
-  const [now, setNow] = useState(() => new Date());
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const today = toLocalDate(new Date());
-      const through = addDays(new Date(), 14);
-      if (!userId) throw new Error("No authenticated patient session.");
-      const [planResult, accessResult] = await Promise.all([
-        supabase
-          .from("care_plans")
-          .select("id,name,description,status,start_date,end_date")
-          .order("created_at", { ascending: false })
-          .limit(50),
-        supabase
-          .from("smartcare_patient_access")
-          .select("patient_id,user_id,access_role,active,granted_at")
-          .eq("user_id", userId)
-          .eq("access_role", "PATIENT")
-          .eq("active", true),
-      ]);
-      const { data: planRows, error: planError } = planResult;
-      if (planError) throw planError;
-      if (accessResult.error) throw accessResult.error;
-
-      const loadedPlans = (planRows || []) as CarePlan[];
-      const ownGrants = (accessResult.data || []) as PatientAccess[];
-      const patientIds = [...new Set(ownGrants.map((grant) => grant.patient_id))];
-      let loadedPatientRecords: PatientRecord[] = [];
-      let loadedAccessGrants: PatientAccess[] = ownGrants;
-      if (patientIds.length > 0) {
-        const [patientResult, grantsResult] = await Promise.all([
-          supabase
-            .from("patients")
-            .select("id,full_name")
-            .in("id", patientIds),
-          supabase
-            .from("smartcare_patient_access")
-            .select("patient_id,user_id,access_role,active,granted_at")
-            .in("patient_id", patientIds)
-            .order("granted_at", { ascending: false }),
-        ]);
-        if (patientResult.error) throw patientResult.error;
-        if (grantsResult.error) throw grantsResult.error;
-        loadedPatientRecords = (patientResult.data || []) as PatientRecord[];
-        loadedAccessGrants = (grantsResult.data || []) as PatientAccess[];
-      }
-      setPatientRecords(loadedPatientRecords);
-      setAccessGrants(loadedAccessGrants);
-      if (loadedPlans.length === 0) {
-        setPlans([]);
-        setTasks([]);
-        setOccurrences([]);
-        setEvents([]);
-        setDocuments([]);
-        return;
-      }
-
-      const planIds = loadedPlans.map((plan) => plan.id);
-      const { data: taskRows, error: taskError } = await supabase
-        .from("tasks")
-        .select("id,care_plan_id,name,type,verification_method")
-        .in("care_plan_id", planIds)
-        .limit(500);
-      if (taskError) throw taskError;
-      const loadedTasks = (taskRows || []) as Task[];
-      const taskIds = loadedTasks.map((task) => task.id);
-
-      let loadedOccurrences: Occurrence[] = [];
-      let loadedEvents: EventRecord[] = [];
-      let loadedDocuments: DocumentRecord[] = [];
-      if (taskIds.length > 0) {
-        const [occurrenceResult, eventResult, documentResult] =
-          await Promise.all([
-            supabase
-              .from("task_occurrences")
-              .select("id,task_id,occurrence_date,time_zone,allowed_start_time,allowed_end_time,status,completed_at,completion_source")
-              .in("task_id", taskIds)
-              .gte("occurrence_date", today)
-              .lte("occurrence_date", through)
-              .order("occurrence_date", { ascending: true })
-              .limit(1000),
-            supabase
-              .from("events")
-              .select("occurrence_id,event_time,source,value,confidence,notes")
-              .in("task_id", taskIds)
-              .limit(1000),
-            supabase
-              .from("documents")
-              .select("occurrence_id,uploaded_at,file_name")
-              .in("task_id", taskIds)
-              .limit(1000),
-          ]);
-        if (occurrenceResult.error) throw occurrenceResult.error;
-        if (eventResult.error) throw eventResult.error;
-        if (documentResult.error) throw documentResult.error;
-        loadedOccurrences = (occurrenceResult.data || []) as Occurrence[];
-        loadedEvents = (eventResult.data || []) as EventRecord[];
-        loadedDocuments = (documentResult.data || []) as DocumentRecord[];
-      }
-
-      setPlans(loadedPlans);
-      setTasks(loadedTasks);
-      setOccurrences(loadedOccurrences);
-      setEvents(loadedEvents);
-      setDocuments(loadedDocuments);
-    } catch (loadError) {
-      console.error("Unable to load the patient dashboard.", loadError);
-      setError("Your care information could not be loaded. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, [userId]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => void refresh(), 0);
-    return () => window.clearTimeout(timer);
-  }, [refresh, reload]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const today = toLocalDate(now);
-  const taskMap = useMemo(
-    () => new Map(tasks.map((task) => [task.id, task])),
-    [tasks],
-  );
-  const todayTasks = useMemo(() => {
-    return occurrences
-      .filter((occurrence) => occurrence.occurrence_date === today)
-      .flatMap((occurrence) => {
-        const task = taskMap.get(occurrence.task_id);
-        if (!task) return [];
-        const result = evaluateExecution({
-          task,
-          occurrence,
-          events: events
-            .filter((event) => event.occurrence_id === occurrence.id)
-            .map((event) => ({ ...event, occurrence_id: occurrence.id })),
-          documents: documents
-            .filter((document) => document.occurrence_id === occurrence.id)
-            .map((document) => ({ ...document, occurrence_id: occurrence.id })),
-          now,
-        });
-        return [{ occurrence, task, state: result.state }];
-      })
-      .sort((a, b) =>
-        (a.occurrence.allowed_start_time || "").localeCompare(
-          b.occurrence.allowed_start_time || "",
-        ),
-      );
-  }, [documents, events, now, occurrences, taskMap, today]);
-
-  const upcomingTasks = useMemo(() => {
-    return occurrences
-      .filter((occurrence) => occurrence.occurrence_date > today)
-      .slice(0, 5)
-      .flatMap((occurrence) => {
-        const task = taskMap.get(occurrence.task_id);
-        return task ? [{ occurrence, task }] : [];
-      });
-  }, [occurrences, taskMap, today]);
-  const upcomingAppointments = upcomingTasks.filter(({ task }) =>
-    task.type.toUpperCase().includes("APPOINTMENT"),
-  );
-
-  const completedToday = todayTasks.filter((item) => completed(item.state)).length;
-  const progress =
-    todayTasks.length === 0
-      ? 0
-      : Math.round((completedToday / todayTasks.length) * 100);
-  const nextTask = todayTasks.find(
-    (item) => !completed(item.state) && !["MISSED", "CONFLICTING"].includes(item.state),
-  );
-  const activePlans = plans.filter(
-    (plan) => !["COMPLETED", "CLOSED", "CANCELLED"].includes(plan.status.toUpperCase()),
-  );
-  const recentDocuments = documents
-    .slice()
-    .sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at))
-    .slice(0, 3);
-
+function Arrow({ diagonal = false }: { diagonal?: boolean }) {
   return (
-    <main id="dashboard" className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-6">
-      <div className="mx-auto max-w-6xl">
-        <header className="mb-8">
-          <p className="text-sm font-medium text-teal-700">
-            {now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Your recovery plan
-          </h1>
-          <p className="mt-2 max-w-2xl text-slate-600">
-            A clear view of today’s care activities and what comes next.
-          </p>
-        </header>
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      className={`sc-home-arrow ${diagonal ? "is-diagonal" : ""}`}
+    >
+      <path
+        d={
+          diagonal
+            ? "M7 17 17 7M8 7h9v9"
+            : "M4 12h15m-6-6 6 6-6 6"
+        }
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
-        {error && (
-          <section role="alert" className="mb-6 rounded-xl border border-rose-200 bg-rose-50 p-4">
-            <p className="font-medium text-rose-900">{error}</p>
-            <button
-              type="button"
-              onClick={() => setReload((value) => value + 1)}
-              className="mt-3 rounded-lg border border-rose-300 px-3 py-2 text-sm font-medium text-rose-900"
-            >
-              Try again
-            </button>
-          </section>
-        )}
+function Brand() {
+  return (
+    <Link href="/" className="sc-home-brand" aria-label="SmartCare home">
+      <span className="sc-home-brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 40 40" fill="none">
+          <path
+            d="M20 7v26M7 20h26"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+          />
+          <circle cx="20" cy="20" r="7" fill="currentColor" />
+          <circle cx="20" cy="20" r="2.5" fill="#0f050d" />
+        </svg>
+      </span>
+      <span className="sc-home-brand-name">
+        Smart<span>Care</span>
+      </span>
+    </Link>
+  );
+}
 
-        <section className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
-          <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Today’s care</p>
-                <h2 className="mt-1 text-2xl font-semibold">
-                  {loading ? "Loading your progress…" : `${progress}% complete`}
-                </h2>
-              </div>
-              <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-medium text-teal-800">
-                {activePlans.length} active {activePlans.length === 1 ? "plan" : "plans"}
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="sc-home-eyebrow">
+      <span className="sc-home-eyebrow-dot" />
+      {children}
+    </div>
+  );
+}
+
+function DashboardPreview() {
+  return (
+    <div className="sc-home-preview-wrap">
+      <div className="sc-home-preview-orbit sc-home-float" />
+
+      <div className="sc-home-preview">
+        <div className="sc-home-preview-topbar">
+          <div className="sc-home-window-dots" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </div>
+          <span>SMARTCARE / WORKSPACE</span>
+          <span className="sc-home-preview-live">
+            <i /> LIVE SYSTEM PREVIEW
+          </span>
+        </div>
+
+        <div className="sc-home-preview-body">
+          <div className="sc-home-preview-greeting">
+            <div>
+              <p className="sc-home-micro-label">PATIENT RECOVERY WORKSPACE</p>
+              <h2>Clear care plans, verifiable progress.</h2>
+              <p>Prescribed regimens, execution windows, and clinical oversight.</p>
+            </div>
+            <div className="sc-home-preview-symbol" aria-hidden="true">
+              ✳
+            </div>
+          </div>
+
+          <div className="sc-home-preview-stats">
+            <div className="sc-home-mini-card">
+              <span className="sc-home-mini-icon">◎</span>
+              <span className="sc-home-mini-label">Adherence Tracking</span>
+              <strong>83% Complete</strong>
+              <span className="sc-home-mini-foot">
+                5 of 6 activities done today
               </span>
             </div>
-            <div
-              className="mt-5 h-2.5 overflow-hidden rounded-full bg-slate-100"
-              role="progressbar"
-              aria-label="Today's care plan progress"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={loading ? 0 : progress}
-            >
-              <div
-                className="h-full rounded-full bg-teal-600 transition-[width]"
-                style={{ width: `${loading ? 0 : progress}%` }}
-              />
+
+            <div className="sc-home-mini-card">
+              <span className="sc-home-mini-icon purple">◷</span>
+              <span className="sc-home-mini-label">Daily Execution</span>
+              <strong>Time-Aware</strong>
+              <span className="sc-home-mini-foot">
+                Enforced start &amp; end windows
+              </span>
             </div>
-            <p className="mt-2 text-sm text-slate-500">
-              {loading
-                ? "Checking scheduled care activities."
-                : `${completedToday} of ${todayTasks.length} activities recorded as complete today.`}
-            </p>
-          </article>
+          </div>
 
-          <article className="rounded-2xl border border-teal-100 bg-teal-50 p-6">
-            <p className="text-sm font-medium text-teal-900">Coming up</p>
-            {loading ? (
-              <p className="mt-3 text-sm text-teal-800">Finding your next activity…</p>
-            ) : nextTask ? (
-              <>
-                <h2 className="mt-2 text-xl font-semibold text-teal-950">{nextTask.task.name}</h2>
-                <p className="mt-1 text-sm text-teal-900">
-                  {formatWindow(nextTask.occurrence)}
-                </p>
-                <Link
-                  href={`/care-plans/${nextTask.task.care_plan_id}`}
-                  className="mt-5 inline-flex min-h-11 items-center rounded-lg bg-teal-800 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-900"
-                >
-                  View care plan
-                </Link>
-              </>
-            ) : (
-              <p className="mt-3 text-sm text-teal-900">
-                No upcoming activity is scheduled for today.
-              </p>
-            )}
-          </article>
-        </section>
-
-        <section className="mt-8 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-          <article id="tasks" className="scroll-mt-32 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
+          <div className="sc-home-preview-list">
+            <div className="sc-home-preview-list-head">
               <div>
-                <h2 className="text-xl font-semibold">Today’s activities</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Your care team’s instructions for today.
+                <p className="sc-home-preview-list-title">Today&apos;s recovery activities</p>
+                <p className="sc-home-preview-list-sub">
+                  Sample Protocol Schedule
                 </p>
               </div>
+              <span className="sc-home-outline-pill">Illustrative</span>
+            </div>
+
+            {[
+              {
+                number: "01",
+                title: "Wound Dressing & Inspection",
+                window: "08:00 – 10:00",
+                badge: "Completed on time",
+                badgeClass: "text-emerald-300",
+              },
+              {
+                number: "02",
+                title: "Morning Prescribed Medication",
+                window: "09:00 – 10:30",
+                badge: "Caregiver Verified",
+                badgeClass: "text-[#EA9D9D]",
+              },
+              {
+                number: "03",
+                title: "Post-Op Physical Therapy Check",
+                window: "14:00 – 16:00",
+                badge: "Scheduled Today",
+                badgeClass: "text-slate-400",
+              },
+            ].map((item, index) => (
+              <div className="sc-home-task-row" key={item.number}>
+                <span className={`sc-home-task-number n${index + 1}`}>
+                  {item.number}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <strong>{item.title}</strong>
+                  <p>{item.window}</p>
+                </div>
+                <span className={`text-[0.7rem] font-medium ${item.badgeClass} shrink-0`}>
+                  {item.badge}
+                </span>
+                <span className="sc-home-task-chevron">
+                  <Arrow diagonal />
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="sc-home-preview-note">
+            <span>✦</span>
+            <p>
+              <strong>Connected by design</strong>
+              <small>Multi-source evidence verification with automated clinical escalations.</small>
+            </p>
+          </div>
+
+          <p className="sc-home-preview-disclaimer">
+            Illustrative interface preview — not live patient information
+          </p>
+        </div>
+      </div>
+
+      <div className="sc-home-float-card sc-home-float-card-one">
+        <span className="sc-home-float-card-icon">↗</span>
+        <span>
+          <strong>Progress visibility</strong>
+          <small>Real-time adherence tracking</small>
+        </span>
+      </div>
+
+      <div className="sc-home-float-card sc-home-float-card-two">
+        <span className="sc-home-float-card-icon violet">⌘</span>
+        <span>
+          <strong>Role-aware access</strong>
+          <small>PostgreSQL Row-Level Security</small>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function PortalCard({
+  icon,
+  number,
+  roleTag,
+  title,
+  description,
+  href,
+  action,
+}: (typeof portalCards)[number]) {
+  return (
+    <article className="sc-home-feature-card">
+      <div className="sc-home-feature-top">
+        <span className="sc-home-feature-icon">{icon}</span>
+        <span className="sc-home-feature-number">{number}</span>
+      </div>
+      <p className="sc-home-feature-label">{roleTag} WORKSPACE</p>
+      <h3>{title}</h3>
+      <p className="sc-home-feature-description">{description}</p>
+      <Link
+        href={href}
+        className="sc-home-text-link mt-auto"
+      >
+        {action} <Arrow diagonal />
+      </Link>
+      <span className="sc-home-feature-line" />
+    </article>
+  );
+}
+
+export default function HomePage() {
+  const { session, role } = useSmartCareAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const userDashboard =
+    role === "PATIENT"
+      ? "/patient"
+      : role === "CLINICIAN"
+      ? "/clinical"
+      : role === "CAREGIVER"
+      ? "/caregiver"
+      : role === "ADMIN"
+      ? "/admin"
+      : null;
+
+  return (
+    <main className="sc-home">
+      <div className="sc-home-ambient" aria-hidden="true">
+        <span className="sc-home-ambient-one" />
+        <span className="sc-home-ambient-two" />
+        <span className="sc-home-grid" />
+      </div>
+
+      <div className="sc-home-content">
+        {/* Section 1: Header with SmartCare branding and navigation */}
+        <header className="sc-home-header">
+          <nav className="sc-home-nav" aria-label="Main navigation">
+            <Brand />
+
+            <div className="sc-home-nav-links">
+              <a href="#platform">Platform</a>
+              <a href="#workflow">How it works</a>
+              <a href="#portals">Workspaces</a>
+              <a href="#principles">Safety &amp; Governance</a>
+              <a href="#faqs">FAQ</a>
+            </div>
+
+            <div className="sc-home-nav-actions">
+              {session && userDashboard ? (
+                <Link className="sc-home-nav-cta" href={userDashboard}>
+                  Open {role?.toLowerCase()} portal <Arrow diagonal />
+                </Link>
+              ) : (
+                <Link className="sc-home-nav-cta" href="/patient">
+                  Explore Workspaces <Arrow diagonal />
+                </Link>
+              )}
+
+              {/* Mobile hamburger menu toggle */}
               <button
                 type="button"
-                onClick={() => setReload((value) => value + 1)}
-                className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium hover:bg-slate-50"
+                onClick={() => setMobileMenuOpen((open) => !open)}
+                className="sc-home-mobile-toggle"
+                aria-label="Toggle navigation menu"
+                aria-expanded={mobileMenuOpen}
               >
-                Refresh
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="h-5 w-5"
+                >
+                  {mobileMenuOpen ? (
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  ) : (
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M4 6h16M4 12h16M4 18h16"
+                    />
+                  )}
+                </svg>
               </button>
             </div>
-            {loading ? (
-              <ul className="mt-5 space-y-3" aria-label="Loading today's activities">
-                {[1, 2, 3].map((item) => (
-                  <li key={item} className="h-16 animate-pulse rounded-xl bg-slate-100" />
-                ))}
-              </ul>
-            ) : todayTasks.length === 0 ? (
-              <div className="mt-5 rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-600">
-                No activities are scheduled for today. If you expected to see a plan, contact your care team.
+          </nav>
+
+          {/* Responsive Mobile Drawer */}
+          {mobileMenuOpen && (
+            <div className="sc-home-mobile-drawer">
+              <a href="#platform" onClick={() => setMobileMenuOpen(false)}>
+                Platform
+              </a>
+              <a href="#workflow" onClick={() => setMobileMenuOpen(false)}>
+                How it works
+              </a>
+              <a href="#portals" onClick={() => setMobileMenuOpen(false)}>
+                Workspaces
+              </a>
+              <a href="#principles" onClick={() => setMobileMenuOpen(false)}>
+                Safety &amp; Governance
+              </a>
+              <a href="#faqs" onClick={() => setMobileMenuOpen(false)}>
+                FAQ
+              </a>
+              <div className="pt-2">
+                <Link
+                  href={userDashboard || "/patient"}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="sc-home-button-primary w-full text-center"
+                >
+                  {session && userDashboard
+                    ? `Open ${role?.toLowerCase()} portal →`
+                    : "Explore Patient Portal →"}
+                </Link>
               </div>
-            ) : (
-              <ul className="mt-5 divide-y divide-slate-100">
-                {todayTasks.map(({ occurrence, task, state }) => (
-                  <li key={occurrence.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
-                    <div className="min-w-0">
-                      <p className="font-medium">{task.name}</p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {task.type.replaceAll("_", " ")} · {formatWindow(occurrence)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors duration-300 ${stateStyle(state)}`}>
-                        {stateLabel(state)}
-                      </span>
-                      <Link
-                        href={`/care-plans/${task.care_plan_id}`}
-                        aria-label={`Open care plan for ${task.name}`}
-                        className="min-h-10 rounded-lg px-3 py-2 text-sm font-medium text-teal-800 hover:bg-teal-50"
-                      >
-                        View
-                      </Link>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </article>
+            </div>
+          )}
+        </header>
 
-          <div className="space-y-6">
-            <article id="care-plans" className="scroll-mt-32 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-xl font-semibold">Your care plans</h2>
-              {loading ? (
-                <p className="mt-4 text-sm text-slate-500">Loading your plans…</p>
-              ) : plans.length === 0 ? (
-                <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
-                  No care plan is linked to your account yet. Ask your care team to connect your plan.
-                </p>
-              ) : (
-                <ul className="mt-4 space-y-3">
-                  {plans.slice(0, 4).map((plan) => (
-                    <li key={plan.id} className="rounded-xl bg-slate-50 p-4">
-                      <Link href={`/care-plans/${plan.id}`} className="font-medium text-teal-800 hover:underline">
-                        {plan.name}
-                      </Link>
-                      <p className="mt-1 text-xs capitalize text-slate-500">
-                        {plan.status.toLowerCase()} · Started {plan.start_date}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </article>
+        {/* Section 2: Hero section with healthcare headline, supporting copy, dual CTAs */}
+        <section className="sc-home-hero">
+          <div className="sc-home-hero-copy sc-home-reveal">
+            <Eyebrow>INTELLIGENT HEALTHCARE RECOVERY PLATFORM</Eyebrow>
 
-            <article id="upcoming-care" className="scroll-mt-32 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-xl font-semibold">Upcoming care</h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Appointments, tests, and other activities already listed in your care plan.
+            <h1>
+              Better care.
+              <br />
+              Beyond the
+              <br />
+              <span className="sc-home-gradient-text">hospital door.</span>
+            </h1>
+
+            <p className="sc-home-hero-description">
+              SmartCare brings care plans, daily activities, progress records,
+              and follow-up workflows into one connected workspace for the
+              recovery journey.
+            </p>
+
+            <div className="sc-home-hero-actions">
+              <Link className="sc-home-button-primary" href="/patient">
+                Enter Patient Portal <Arrow />
+              </Link>
+              <a className="sc-home-button-quiet" href="#portals">
+                Explore Workspaces <span>↓</span>
+              </a>
+            </div>
+
+            <div className="sc-home-hero-foot">
+              <span className="sc-home-foot-icon">✳</span>
+              <p>
+                Structured around the three pillars of coordinated recovery.
+                <small>Hospital Admins · Doctors &amp; Clinicians · Patients</small>
               </p>
-              {!loading && upcomingTasks.length > 0 && (
-                <ul className="mt-4 space-y-3">
-                  {upcomingTasks.map(({ occurrence, task }) => (
-                    <li key={occurrence.id} className="flex items-center justify-between gap-3 text-sm">
-                      <span className="font-medium">{task.name}</span>
-                      <span className="shrink-0 text-slate-500">
-                        {new Date(`${occurrence.occurrence_date}T12:00:00`).toLocaleDateString()}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {!loading && upcomingTasks.length === 0 && (
-                <p className="mt-4 text-sm text-slate-600">
-                  No upcoming care activities are listed in your plan.
-                </p>
-              )}
-              <h3 className="mt-5 text-sm font-semibold">Appointments</h3>
-              {!loading && upcomingAppointments.length > 0 ? (
-                <ul className="mt-2 space-y-2">
-                  {upcomingAppointments.map(({ occurrence, task }) => (
-                    <li key={occurrence.id} className="text-sm">
-                      <span className="font-medium">{task.name}</span>
-                      <span className="ml-2 text-slate-500">
-                        {new Date(`${occurrence.occurrence_date}T12:00:00`).toLocaleDateString()}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-2 text-sm text-slate-600">
-                  No appointments are listed in your care plan. External appointment systems are not connected.
-                </p>
-              )}
-            </article>
+            </div>
+          </div>
 
-            <article id="documents" className="scroll-mt-32 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-xl font-semibold">Recent documents</h2>
-              {recentDocuments.length > 0 ? (
-                <ul className="mt-3 space-y-2">
-                  {recentDocuments.map((document, index) => (
-                    <li key={`${document.uploaded_at}-${index}`} className="text-sm text-slate-700">
-                      {document.file_name}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-3 text-sm text-slate-600">
-                  No documents are linked to your care plans yet.
-                </p>
-              )}
-              <p className="mt-3 text-xs text-slate-500">
-                Open a care plan to access documents using your authorized signed links.
-              </p>
-            </article>
+          {/* Section 3: Product / dashboard preview demonstrating the platform */}
+          <div className="sc-home-hero-visual sc-home-reveal sc-home-reveal-delay">
+            <DashboardPreview />
+          </div>
 
-            <article id="profile" className="scroll-mt-32 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-xl font-semibold">Your profile</h2>
-              <dl className="mt-4 space-y-3 text-sm">
-                <div>
-                  <dt className="text-slate-500">Name</dt>
-                  <dd className="font-medium">
-                    {loading ? "Loading…" : patientRecords.map((patient) => patient.full_name).join(", ") || "No patient profile is linked to this account."}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-slate-500">Account email</dt>
-                  <dd className="break-all font-medium">{session?.user.email || "Unavailable"}</dd>
-                </div>
-                <div>
-                  <dt className="text-slate-500">Privacy and access</dt>
-                  <dd className="text-slate-700">
-                    Care information is limited by your account’s assigned access. Contact your care team to request a correction or access change.
-                  </dd>
-                </div>
-              </dl>
-            </article>
-
-            <article id="care-team" className="scroll-mt-32 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-xl font-semibold">Care team access</h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Access grants are shown from the patient-access records available to this account. Names and direct access controls are not available in the current profile data.
-              </p>
-              {loading ? (
-                <p className="mt-4 text-sm text-slate-500">Loading access information…</p>
-              ) : accessGrants.filter((grant) => grant.access_role === "CAREGIVER").length > 0 ? (
-                <ul className="mt-4 space-y-3">
-                  {accessGrants
-                    .filter((grant) => grant.access_role === "CAREGIVER")
-                    .map((grant) => (
-                      <li key={`${grant.patient_id}-${grant.user_id}`} className="rounded-xl bg-slate-50 p-4">
-                        <p className="font-medium">Caregiver account · {grant.user_id.slice(-8)}</p>
-                        <p className="mt-1 text-sm text-slate-600">
-                          {grant.active ? "Access active" : "Access inactive"} · Granted {new Date(grant.granted_at).toLocaleDateString()}
-                        </p>
-                      </li>
-                    ))}
-                </ul>
-              ) : (
-                <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
-                  No caregiver access is visible to this account. Ask your care team to confirm current grants.
-                </p>
-              )}
-            </article>
-
-            <article id="measurements" className="scroll-mt-32 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-xl font-semibold">Measurements</h2>
-              <p className="mt-2 text-sm text-slate-600">
-                No measurement history is connected to this account. SmartCare does not display simulated or invented clinical measurements.
-              </p>
-            </article>
+          <div className="sc-home-hero-index" aria-hidden="true">
+            <span>01</span>
+            <i />
+            <span>04</span>
           </div>
         </section>
 
-        <footer className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="font-semibold">Need help?</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Contact your care team if an instruction is unclear. SmartCare organizes your care plan but does not replace medical advice.
+        {/* Manifesto divider banner */}
+        <section className="sc-home-manifesto" aria-label="Our mission">
+          <p className="sc-home-manifesto-label">THE SMARTCARE APPROACH</p>
+          <p className="sc-home-manifesto-text">
+            Less confusion. <span>More clarity.</span>
+            <br />
+            A more connected recovery journey.
           </p>
+          <span className="sc-home-manifesto-orb" aria-hidden="true">
+            ✳
+          </span>
+        </section>
+
+        {/* Section 4: Platform features section with consistent 4-card grid */}
+        <section id="platform" className="sc-home-section sc-home-platform">
+          <div className="sc-home-section-heading">
+            <div>
+              <Eyebrow>BUILT AROUND THE RECOVERY JOURNEY</Eyebrow>
+              <h2>
+                A complete healthcare
+                <br />
+                <span>coordination ecosystem.</span>
+              </h2>
+            </div>
+            <p>
+              Thoughtful capabilities designed to structure care plans, eliminate patient confusion,
+              and coordinate timely follow-up across clinical teams.
+            </p>
+          </div>
+
+          <div className="sc-home-feature-grid">
+            {platformFeatures.map((feature) => (
+              <article className="sc-home-feature-card" key={feature.number}>
+                <div className="sc-home-feature-top">
+                  <span className="sc-home-feature-icon">{feature.icon}</span>
+                  <span className="sc-home-feature-number">{feature.number}</span>
+                </div>
+                <p className="sc-home-feature-label">{feature.label}</p>
+                <h3>{feature.title}</h3>
+                <p className="sc-home-feature-description">
+                  {feature.description}
+                </p>
+                <span className="sc-home-feature-line" />
+              </article>
+            ))}
+          </div>
+        </section>
+
+        {/* Section 5: Four-step care workflow section */}
+        <section id="workflow" className="sc-home-workflow">
+          <div className="sc-home-workflow-inner">
+            <div className="sc-home-workflow-intro">
+              <Eyebrow>A CLEARER WAY FORWARD</Eyebrow>
+              <h2>
+                From the care plan
+                <br />
+                <span>to every next step.</span>
+              </h2>
+              <p>
+                Post-discharge recovery involves many interconnected activities. SmartCare organizes
+                the journey into a predictable, four-step clinical workflow.
+              </p>
+              <Link href="/login" className="sc-home-text-link">
+                Open your workspace <Arrow diagonal />
+              </Link>
+            </div>
+
+            <div className="sc-home-steps">
+              {steps.map((step, index) => (
+                <article className="sc-home-step" key={step.number}>
+                  <div className="sc-home-step-track">
+                    <span>{step.number}</span>
+                    {index < steps.length - 1 && <i />}
+                  </div>
+                  <div className="sc-home-step-copy">
+                    <h3>{step.title}</h3>
+                    <p>{step.description}</p>
+                  </div>
+                  <Arrow diagonal />
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Section 6: Three primary portals: Hospital Admin, Doctor, and Patient */}
+        <section id="portals" className="sc-home-section">
+          <div className="sc-home-section-heading">
+            <div>
+              <Eyebrow>ONE PLATFORM, ROLE-AWARE ACCESS</Eyebrow>
+              <h2>
+                Three primary portals for
+                <br />
+                <span>synchronized healthcare delivery.</span>
+              </h2>
+            </div>
+            <p>
+              Hospital Admin authorizes doctors, doctors manage care plans and patient access, and patients execute recovery guidance with integrated family caregiving support.
+            </p>
+          </div>
+
+          <div className="sc-home-feature-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
+            {portalCards.map((portal) => (
+              <PortalCard key={portal.number} {...portal} />
+            ))}
+          </div>
+        </section>
+
+        {/* Section 7: Trust, safety, and design principles section */}
+        <section id="principles" className="sc-home-principles">
+          <div className="sc-home-principles-art" aria-hidden="true">
+            <div className="sc-home-principles-ring ring-one" />
+            <div className="sc-home-principles-ring ring-two" />
+            <div className="sc-home-principles-ring ring-three" />
+            <span>SC</span>
+          </div>
+
+          <div className="sc-home-principles-copy">
+            <Eyebrow>TECHNOLOGY WITH A HUMAN PURPOSE</Eyebrow>
+            <h2>
+              Designed to support care.
+              <br />
+              <span>Grounded in clarity.</span>
+            </h2>
+            <p>
+              Good healthcare software should help people understand information and
+              coordinate tasks—never add confusion. SmartCare is engineered around clinical safety,
+              patient privacy, and verifiable execution.
+            </p>
+
+            <div className="sc-home-principle-list">
+              {principles.map((p) => (
+                <div key={p.number}>
+                  <span>{p.number}</span>
+                  <p>
+                    <strong>{p.title}</strong>
+                    <small>{p.description}</small>
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Section 8: FAQ section */}
+        <section id="faqs" className="sc-home-faq">
+          <div className="sc-home-faq-heading">
+            <Eyebrow>FREQUENTLY ASKED QUESTIONS</Eyebrow>
+            <h2>
+              A few things,
+              <br />
+              <span>made clear.</span>
+            </h2>
+            <p>Quick answers about the SmartCare platform and how it supports recovery.</p>
+          </div>
+
+          <div className="sc-home-faq-list">
+            {faqs.map((faq, index) => (
+              <details className="sc-home-faq-item" key={faq.question}>
+                <summary>
+                  <span className="sc-home-faq-number">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span>{faq.question}</span>
+                  <span className="sc-home-faq-toggle" aria-hidden="true">
+                    +
+                  </span>
+                </summary>
+                <p>{faq.answer}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+
+        {/* CTA section */}
+        <section className="sc-home-cta">
+          <div className="sc-home-cta-glow" aria-hidden="true" />
+          <div className="sc-home-cta-content">
+            <Eyebrow>YOUR NEXT STEP STARTS HERE</Eyebrow>
+            <h2>
+              Bring recovery care
+              <br />
+              <span>into focus.</span>
+            </h2>
+            <p>
+              Explore the dedicated workspaces, review active care plans,
+              or preview coordinated patient follow-up.
+            </p>
+            <div className="flex flex-wrap items-center gap-4">
+              <Link href="/patient" className="sc-home-button-primary">
+                Preview Patient Portal <Arrow />
+              </Link>
+              <Link href="/clinical" className="sc-home-button-quiet">
+                Clinical Workspace <Arrow />
+              </Link>
+            </div>
+          </div>
+          <div className="sc-home-cta-symbol" aria-hidden="true">
+            ✳
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="sc-home-footer">
+          <Brand />
+          <p>
+            Care, connected. A digital workspace for post-discharge care coordination and
+            follow-up.
+          </p>
+          <div className="sc-home-footer-links">
+            <Link href="/patient">Patient Portal</Link>
+            <Link href="/clinical">Doctor Workspace</Link>
+            <Link href="/caregiver">Caregiver Workspace</Link>
+            <Link href="/admin">Hospital Administration</Link>
+            <Link href="/research">Research Analytics</Link>
+          </div>
+          <small>
+            Disclaimer: SmartCare supports post-discharge care plan coordination and does not
+            replace professional medical advice, clinical diagnosis, or emergency medical services.
+          </small>
         </footer>
       </div>
     </main>

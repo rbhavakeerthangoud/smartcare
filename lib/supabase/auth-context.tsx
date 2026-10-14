@@ -25,7 +25,10 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function parseRole(value: unknown): SmartCareRole | null {
+function parseRole(value: unknown, status?: unknown): SmartCareRole | null {
+  if (status === "SUSPENDED" || status === "REVOKED") {
+    return null;
+  }
   if (
     value === "PATIENT" ||
     value === "CAREGIVER" ||
@@ -89,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const { data, error } = await supabase
           .from("smartcare_user_roles")
-          .select("role")
+          .select("*")
           .eq("user_id", userId)
           .maybeSingle();
         if (!active) return;
@@ -97,9 +100,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setRoleResult({ userId, role: null, error: true });
           return;
         }
+        const record = data as { role?: string; status?: string } | null;
         setRoleResult({
           userId,
-          role: parseRole(data?.role),
+          role: parseRole(record?.role, record?.status),
           error: false,
         });
       } catch {

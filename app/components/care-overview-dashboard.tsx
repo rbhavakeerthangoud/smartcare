@@ -60,6 +60,176 @@ function isActive(escalation: Escalation) {
   return !["RESOLVED", "CLOSED"].includes(escalation.status);
 }
 
+function stateBadge(state: ExecutionState) {
+  const base = "sc-badge";
+  if (state === "ON_TIME" || state === "REPORTED" || state === "DOCUMENT_RECORDED") {
+    return `${base} sc-badge-success`;
+  }
+  if (state === "LATE") return `${base} sc-badge-warning`;
+  if (state === "MISSED" || state === "CONFLICTING") return `${base} sc-badge-danger`;
+  return `${base} sc-badge-neutral`;
+}
+
+function getDemoOverviewData(audience: Audience) {
+  const isCaregiver = audience === "CAREGIVER";
+  const todayDate = new Date().toISOString().slice(0, 10);
+
+  const demoPatients: Patient[] = isCaregiver
+    ? [{ id: "demo-patient-1", full_name: "Eleanor Vance (Sample Patient)" }]
+    : [
+        { id: "demo-patient-1", full_name: "Eleanor Vance (Sample Patient)" },
+        { id: "demo-patient-2", full_name: "Marcus Brody (Sample Patient)" },
+      ];
+
+  const demoCarePlans: CarePlan[] = isCaregiver
+    ? [{ id: "demo-plan-1", patient_id: "demo-patient-1", name: "Post-Cardiac Recovery Regimen" }]
+    : [
+        { id: "demo-plan-1", patient_id: "demo-patient-1", name: "Post-Cardiac Recovery Regimen" },
+        { id: "demo-plan-2", patient_id: "demo-patient-2", name: "Orthopedic Mobility Protocol" },
+      ];
+
+  const demoTasks: Task[] = isCaregiver
+    ? [
+        { id: "demo-t-1", care_plan_id: "demo-plan-1", name: "Morning Beta-Blocker (25mg)", verification_method: "PATIENT_REPORT" },
+        { id: "demo-t-2", care_plan_id: "demo-plan-1", name: "Resting Blood Pressure & Pulse", verification_method: "DEVICE_INTEGRATION" },
+        { id: "demo-t-3", care_plan_id: "demo-plan-1", name: "Surgical Incision Inspection", verification_method: "CAREGIVER_CONFIRMATION" },
+      ]
+    : [
+        { id: "demo-t-1", care_plan_id: "demo-plan-1", name: "Morning Beta-Blocker (25mg)", verification_method: "PATIENT_REPORT" },
+        { id: "demo-t-2", care_plan_id: "demo-plan-1", name: "Resting Blood Pressure & Pulse", verification_method: "DEVICE_INTEGRATION" },
+        { id: "demo-t-3", care_plan_id: "demo-plan-1", name: "Surgical Incision Inspection", verification_method: "CAREGIVER_CONFIRMATION" },
+        { id: "demo-t-4", care_plan_id: "demo-plan-2", name: "Weight-bearing Ambulation (15 min)", verification_method: "CAREGIVER_CONFIRMATION" },
+        { id: "demo-t-5", care_plan_id: "demo-plan-2", name: "Post-Op Orthopedic Clinic Visit", verification_method: "CLINICAL_RECORD" },
+      ];
+
+  const demoOccurrences: Occurrence[] = [
+    {
+      id: "demo-occ-1",
+      task_id: "demo-t-1",
+      occurrence_date: todayDate,
+      time_zone: "UTC",
+      allowed_start_time: "08:00:00",
+      allowed_end_time: "10:00:00",
+      status: "COMPLETED",
+      completed_at: `${todayDate}T08:25:00Z`,
+      completion_source: "PATIENT",
+    },
+    {
+      id: "demo-occ-2",
+      task_id: "demo-t-2",
+      occurrence_date: todayDate,
+      time_zone: "UTC",
+      allowed_start_time: "09:00:00",
+      allowed_end_time: "11:00:00",
+      status: "COMPLETED",
+      completed_at: `${todayDate}T09:10:00Z`,
+      completion_source: "DEVICE",
+    },
+    {
+      id: "demo-occ-3",
+      task_id: "demo-t-3",
+      occurrence_date: todayDate,
+      time_zone: "UTC",
+      allowed_start_time: "12:00:00",
+      allowed_end_time: "14:00:00",
+      status: "PENDING",
+      completed_at: null,
+      completion_source: null,
+    },
+    ...(isCaregiver
+      ? []
+      : [
+          {
+            id: "demo-occ-4",
+            task_id: "demo-t-4",
+            occurrence_date: todayDate,
+            time_zone: "UTC",
+            allowed_start_time: "14:00:00",
+            allowed_end_time: "16:00:00",
+            status: "PENDING",
+            completed_at: null,
+            completion_source: null,
+          },
+          {
+            id: "demo-occ-5",
+            task_id: "demo-t-5",
+            occurrence_date: todayDate,
+            time_zone: "UTC",
+            allowed_start_time: "16:00:00",
+            allowed_end_time: "17:00:00",
+            status: "PENDING",
+            completed_at: null,
+            completion_source: null,
+          },
+        ]),
+  ];
+
+  const demoEvents: EventRecord[] = [
+    { occurrence_id: "demo-occ-1", event_time: `${todayDate}T08:25:00Z`, source: "PATIENT", value: "Taken with water", confidence: 1 },
+    { occurrence_id: "demo-occ-2", event_time: `${todayDate}T09:10:00Z`, source: "DEVICE", value: "118/76 mmHg", confidence: 0.98 },
+  ];
+
+  const demoDocuments: DocumentRecord[] = [
+    { occurrence_id: null, uploaded_at: `${todayDate}T07:00:00Z`, file_name: "Discharge_Summary_Signed.pdf" },
+  ];
+
+  const demoEscalations: Escalation[] = [
+    {
+      id: "demo-esc-1",
+      care_plan_id: "demo-plan-1",
+      task_id: "demo-t-3",
+      occurrence_id: "demo-occ-3",
+      trigger_state: "MISSED",
+      priority: "HIGH",
+      recipient_type: isCaregiver ? "CAREGIVER" : "CLINICIAN",
+      status: "OPEN",
+      message: "Scheduled wound inspection window expired without verification evidence.",
+      created_at: `${todayDate}T10:05:00Z`,
+      acknowledged_at: null,
+      resolved_at: null,
+    },
+    ...(isCaregiver
+      ? []
+      : [
+          {
+            id: "demo-esc-2",
+            care_plan_id: "demo-plan-2",
+            task_id: "demo-t-4",
+            occurrence_id: "demo-occ-4",
+            trigger_state: "CONFLICTING",
+            priority: "MEDIUM",
+            recipient_type: "CLINICIAN",
+            status: "ACKNOWLEDGED",
+            message: "Mobility task delayed due to elevated systolic blood pressure reading.",
+            created_at: `${todayDate}T09:30:00Z`,
+            acknowledged_at: `${todayDate}T09:45:00Z`,
+            resolved_at: null,
+          },
+        ]),
+  ];
+
+  const states = new Map<string, ExecutionState>();
+  states.set("demo-occ-1", "ON_TIME");
+  states.set("demo-occ-2", "ON_TIME");
+  states.set("demo-occ-3", "BEFORE_WINDOW");
+  if (!isCaregiver) {
+    states.set("demo-occ-4", "PENDING");
+    states.set("demo-occ-5", "PENDING");
+  }
+
+  return {
+    carePlans: demoCarePlans,
+    patients: demoPatients,
+    tasks: demoTasks,
+    occurrences: demoOccurrences,
+    events: demoEvents,
+    documents: demoDocuments,
+    escalations: demoEscalations,
+    executionStates: states,
+    blockedCount: isCaregiver ? 0 : 1,
+  };
+}
+
 export default function CareOverviewDashboard({
   audience,
 }: {
@@ -82,6 +252,7 @@ export default function CareOverviewDashboard({
   const [error, setError] = useState("");
   const [actionId, setActionId] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -90,21 +261,23 @@ export default function CareOverviewDashboard({
       setLoading(true);
       setError("");
       try {
-        if (audience === "CAREGIVER") {
-          if (!userId) {
-            if (!active) return;
-            setCarePlans([]);
-            setPatients([]);
-            setTasks([]);
-            setOccurrences([]);
-            setEvents([]);
-            setDocuments([]);
-            setEscalations([]);
-            setExecutionStates(new Map());
-            setBlockedCount(0);
-            return;
-          }
+        if (!userId) {
+          setIsDemo(true);
+          const demo = getDemoOverviewData(audience);
+          if (!active) return;
+          setCarePlans(demo.carePlans);
+          setPatients(demo.patients);
+          setTasks(demo.tasks);
+          setOccurrences(demo.occurrences);
+          setEvents(demo.events);
+          setDocuments(demo.documents);
+          setEscalations(demo.escalations);
+          setExecutionStates(demo.executionStates);
+          setBlockedCount(demo.blockedCount);
+          return;
+        }
 
+        if (audience === "CAREGIVER") {
           const { data: caregiverAccessRows, error: caregiverAccessError } = await supabase
             .from("smartcare_patient_access")
             .select("patient_id,user_id,access_role,active")
@@ -417,6 +590,25 @@ export default function CareOverviewDashboard({
     setActionId(escalation.id);
     setError("");
     try {
+      if (!userId) {
+        const nowIso = new Date().toISOString();
+        setEscalations((current) =>
+          current.map((item) =>
+            item.id === escalation.id
+              ? {
+                  ...item,
+                  status,
+                  ...(status === "ACKNOWLEDGED"
+                    ? { acknowledged_at: nowIso }
+                    : { resolved_at: nowIso }),
+                }
+              : item,
+          ),
+        );
+        setActionId(null);
+        return;
+      }
+
       const update = {
         status,
         ...(status === "ACKNOWLEDGED"
@@ -465,31 +657,58 @@ export default function CareOverviewDashboard({
   const linkedPatients = [...new Map(patients.map((patient) => [patient.id, patient])).values()];
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-10 text-white">
+    <main className="min-h-screen px-4 py-8 sm:px-6" style={{ background: "var(--sc-background)", color: "var(--sc-text)" }}>
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold">
-            {audience === "CAREGIVER" ? "Caregiver Dashboard" : "Clinical Dashboard"}
+        {isDemo && (
+          <div
+            className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl p-4 text-xs"
+            style={{
+              border: "1px solid var(--sc-border)",
+              background: "var(--sc-surface-soft)",
+              color: "var(--sc-text)",
+            }}
+          >
+            <div className="flex items-center gap-2">
+              <span className="sc-badge sc-badge-primary">DEMO PREVIEW</span>
+              <span>
+                Viewing {audience === "CAREGIVER" ? "caregiver" : "clinical"} workspace in preview mode with synthetic demonstration data. Real records remain secured.
+              </span>
+            </div>
+            <span style={{ color: "var(--sc-muted)" }}>Simulated actions only</span>
+          </div>
+        )}
+
+        <div className="mb-8 sc-animate-fade-up">
+          <p className="sc-section-label">
+            {audience === "CAREGIVER" ? "Caregiver" : "Clinical"} · SmartCare
+          </p>
+          <h1 className="sc-page-title mt-2">
+            {audience === "CAREGIVER" ? "Caregiver Overview" : "Clinical Dashboard"}
           </h1>
-          <p className="mt-2 text-slate-400">
+          <p className="mt-1 text-sm" style={{ color: "var(--sc-muted)" }}>
             Review authorized care plans, execution evidence, and escalations.
           </p>
         </div>
 
         {error && (
-          <div role="alert" className="mb-6 rounded-xl border border-red-800 bg-red-950/40 p-4 text-sm text-red-200">
+          <div role="alert" className="mb-6 sc-alert-error">
             <p>{error}</p>
             <button
               type="button"
               onClick={() => setReload((value) => value + 1)}
-              className="mt-3 rounded-lg border border-red-300/30 px-3 py-2 text-xs font-medium"
+              className="sc-btn-secondary mt-3"
             >
               Retry loading dashboard
             </button>
           </div>
         )}
+
         {loading ? (
-          <p className="text-slate-400">Loading authorized records...</p>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-busy="true" aria-label="Loading dashboard">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="sc-skeleton h-24" />
+            ))}
+          </div>
         ) : (
           <>
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -501,20 +720,20 @@ export default function CareOverviewDashboard({
                 ["High priority", priorityEscalations.length],
                 ...(audience === "CLINICIAN" ? [["Blocked dependencies", blockedCount] as const] : []),
               ].map(([label, value]) => (
-                <div key={label} className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-                  <p className="text-sm text-slate-400">{label}</p>
-                  <p className="mt-2 text-2xl font-semibold">{value}</p>
+                <div key={label} className="sc-metric sc-animate-fade-up">
+                  <p className="sc-metric-label">{label}</p>
+                  <p className="sc-metric-value">{value}</p>
                 </div>
               ))}
             </section>
 
             <section className="mt-8 grid gap-6 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+              <div className="sc-card-lg sc-animate-fade-up">
                 <h2 className="text-xl font-semibold">
                   {audience === "CAREGIVER" ? "Linked patients" : "Patient list"}
                 </h2>
                 {linkedPatients.length === 0 ? (
-                  <p className="mt-4 text-sm text-slate-400">
+                  <p className="mt-4 text-sm" style={{ color: "var(--sc-muted)" }}>
                     No patients are available under your current access.
                   </p>
                 ) : (
@@ -532,10 +751,11 @@ export default function CareOverviewDashboard({
                       return (
                         <li
                           key={patient.id}
-                          className="rounded-xl border border-slate-800 bg-slate-950 p-4"
+                          className="rounded-xl p-4"
+                          style={{ border: "1px solid var(--sc-border)", background: "var(--sc-surface-soft)" }}
                         >
                           <p className="font-medium">{patient.full_name}</p>
-                          <p className="mt-1 text-sm text-slate-400">
+                          <p className="mt-1 text-sm" style={{ color: "var(--sc-muted)" }}>
                             {patientNeedsReview
                               ? "Care activity needs review"
                               : "No current execution alerts"}
@@ -545,7 +765,8 @@ export default function CareOverviewDashboard({
                               <li key={plan.id}>
                                 <Link
                                   href={`/care-plans/${plan.id}`}
-                                  className="text-sm font-medium text-emerald-700 hover:underline"
+                                  className="text-sm font-medium hover:underline"
+                                  style={{ color: "var(--sc-primary)" }}
                                 >
                                   {plan.name}
                                 </Link>
@@ -559,14 +780,14 @@ export default function CareOverviewDashboard({
                 )}
               </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
-                <h2 className="text-xl font-semibold">Today’s care</h2>
+              <div className="sc-card-lg sc-animate-fade-up">
+                <h2 className="text-xl font-semibold">Today&apos;s care</h2>
                 {todayOccurrences.length === 0 ? (
-                  <p className="mt-4 text-sm text-slate-400">
+                  <p className="mt-4 text-sm" style={{ color: "var(--sc-muted)" }}>
                     No care activities are scheduled for today.
                   </p>
                 ) : (
-                  <ul className="mt-4 divide-y divide-slate-800">
+                  <ul className="mt-4 divide-y" style={{ borderColor: "var(--sc-border)" }}>
                     {todayOccurrences.map((occurrence) => {
                       const task = taskMap.get(occurrence.task_id);
                       if (!task) return null;
@@ -579,12 +800,12 @@ export default function CareOverviewDashboard({
                         >
                           <div>
                             <p className="font-medium">{task.name}</p>
-                            <p className="mt-1 text-xs text-slate-400">
+                            <p className="mt-1 text-xs" style={{ color: "var(--sc-muted)" }}>
                               {patientMap.get(plan?.patient_id || "")?.full_name || "Patient"} ·{" "}
                               {occurrence.allowed_start_time?.slice(0, 5) || "Time not specified"}
                             </p>
                           </div>
-                          <span className="rounded-full border border-slate-700 px-3 py-1 text-xs">
+                          <span className={stateBadge(state)}>
                             {state.replaceAll("_", " ")}
                           </span>
                         </li>
@@ -596,28 +817,42 @@ export default function CareOverviewDashboard({
             </section>
 
             <section className="mt-8 grid gap-6 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+              <div className="sc-card-lg sc-animate-fade-up">
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-semibold">Authorized care plans</h2>
                   {audience === "CLINICIAN" && (
-                    <Link href="/care-plans/new" className="text-sm text-emerald-700">
+                    <Link
+                      href="/care-plans/new"
+                      className="text-sm hover:underline"
+                      style={{ color: "var(--sc-primary)" }}
+                    >
                       Create care plan
                     </Link>
                   )}
                 </div>
                 {carePlans.length === 0 ? (
-                  <p className="mt-5 text-sm text-slate-400">No authorized care plans are available.</p>
+                  <p className="mt-5 text-sm" style={{ color: "var(--sc-muted)" }}>
+                    No authorized care plans are available.
+                  </p>
                 ) : (
                   <ul className="mt-5 space-y-3">
                     {carePlans.map((plan) => (
-                      <li key={plan.id} className="rounded-xl border border-slate-800 bg-slate-950 p-4">
-                        <Link href={`/care-plans/${plan.id}`} className="font-medium text-emerald-800 hover:underline">
+                      <li
+                        key={plan.id}
+                        className="rounded-xl p-4"
+                        style={{ border: "1px solid var(--sc-border)", background: "var(--sc-surface-soft)" }}
+                      >
+                        <Link
+                          href={`/care-plans/${plan.id}`}
+                          className="font-medium hover:underline"
+                          style={{ color: "var(--sc-primary)" }}
+                        >
                           {plan.name}
                         </Link>
-                        <p className="mt-1 text-sm text-slate-400">
+                        <p className="mt-1 text-sm" style={{ color: "var(--sc-muted)" }}>
                           Patient: {patientMap.get(plan.patient_id)?.full_name || "Unavailable"}
                         </p>
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="mt-1 text-xs" style={{ color: "var(--sc-muted)" }}>
                           {tasks.filter((task) => task.care_plan_id === plan.id).length} tasks ·{" "}
                           {activeEscalations.filter((item) => item.care_plan_id === plan.id).length} active escalations
                         </p>
@@ -627,24 +862,30 @@ export default function CareOverviewDashboard({
                 )}
               </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+              <div className="sc-card-lg sc-animate-fade-up">
                 <h2 className="text-xl font-semibold">Active escalations</h2>
                 {activeEscalations.length === 0 ? (
-                  <p className="mt-5 text-sm text-slate-400">No active escalations.</p>
+                  <p className="mt-5 text-sm" style={{ color: "var(--sc-muted)" }}>
+                    No active escalations.
+                  </p>
                 ) : (
                   <ul className="mt-5 space-y-3">
                     {activeEscalations.map((escalation) => (
-                      <li key={escalation.id} className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+                      <li
+                        key={escalation.id}
+                        className="rounded-xl p-4"
+                        style={{ border: "1px solid var(--sc-border)", background: "var(--sc-surface-soft)" }}
+                      >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="font-medium">{escalation.trigger_state}</span>
-                          <span className="rounded-full border border-orange-500/30 px-2 py-1 text-xs text-orange-300">
+                          <span className="sc-badge sc-badge-warning">
                             {escalation.priority}
                           </span>
                         </div>
-                        <p className="mt-2 text-sm text-slate-400">
+                        <p className="mt-2 text-sm" style={{ color: "var(--sc-muted)" }}>
                           {escalation.message || "Care-plan execution requires review."}
                         </p>
-                        <p className="mt-2 text-xs text-slate-500">
+                        <p className="mt-2 text-xs" style={{ color: "var(--sc-muted)" }}>
                           {planMap.get(escalation.care_plan_id)?.name || "Care plan"} ·{" "}
                           {taskMap.get(escalation.task_id || "")?.name || "Task"} ·{" "}
                           {new Date(escalation.created_at).toLocaleString()}
@@ -655,7 +896,7 @@ export default function CareOverviewDashboard({
                               type="button"
                               onClick={() => void updateEscalation(escalation, "ACKNOWLEDGED")}
                               disabled={actionId === escalation.id}
-                              className="rounded-lg border border-slate-700 px-3 py-2 text-xs disabled:opacity-50"
+                              className="sc-btn-secondary text-xs px-3 py-1 disabled:opacity-50"
                             >
                               Acknowledge
                             </button>
@@ -664,7 +905,7 @@ export default function CareOverviewDashboard({
                             type="button"
                             onClick={() => void updateEscalation(escalation, "RESOLVED")}
                             disabled={actionId === escalation.id}
-                            className="rounded-lg bg-emerald-900 px-3 py-2 text-xs disabled:opacity-50"
+                            className="sc-btn-primary text-xs px-3 py-1 disabled:opacity-50"
                           >
                             Resolve
                           </button>
@@ -676,29 +917,32 @@ export default function CareOverviewDashboard({
               </div>
             </section>
 
-            <section className="mt-8 rounded-2xl border border-slate-800 bg-slate-900 p-6">
+            <section className="mt-8 sc-card-lg sc-animate-fade-up">
               <h2 className="text-xl font-semibold">Unresolved task occurrences</h2>
               {unresolved.length === 0 ? (
-                <p className="mt-4 text-sm text-slate-400">No unresolved execution deviations.</p>
+                <p className="mt-4 text-sm" style={{ color: "var(--sc-muted)" }}>
+                  No unresolved execution deviations.
+                </p>
               ) : (
-                <ul className="mt-4 divide-y divide-slate-800">
+                <ul className="mt-4 divide-y" style={{ borderColor: "var(--sc-border)" }}>
                   {unresolved.map((occurrence) => {
                     const task = taskMap.get(occurrence.task_id);
                     const plan = carePlans.find((item) => item.id === task?.care_plan_id);
+                    const state = executionStates.get(occurrence.id) || "PENDING";
                     return (
                       <li key={occurrence.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
                         <div>
                           <p className="font-medium">{task?.name || "Task"}</p>
-                          <p className="mt-1 text-xs text-slate-400">
+                          <p className="mt-1 text-xs" style={{ color: "var(--sc-muted)" }}>
                             {planMap.get(plan?.id || "")?.name || "Care plan"} · {occurrence.occurrence_date}
                           </p>
-                          <p className="mt-1 text-xs text-slate-500">
+                          <p className="mt-1 text-xs" style={{ color: "var(--sc-muted)" }}>
                             {events.filter((event) => event.occurrence_id === occurrence.id).length} events ·{" "}
                             {documents.filter((document) => document.occurrence_id === occurrence.id).length} documents
                           </p>
                         </div>
-                        <span className="rounded-full border border-slate-700 px-3 py-1 text-xs">
-                          {executionStates.get(occurrence.id)}
+                        <span className={stateBadge(state)}>
+                          {state.replaceAll("_", " ")}
                         </span>
                       </li>
                     );
@@ -707,16 +951,24 @@ export default function CareOverviewDashboard({
               )}
             </section>
 
-            <section className="mt-8 rounded-2xl border border-slate-800 bg-slate-900 p-6">
+            <section className="mt-8 sc-card-lg sc-animate-fade-up">
               <h2 className="text-xl font-semibold">Escalation history</h2>
               {escalations.length === 0 ? (
-                <p className="mt-4 text-sm text-slate-400">No escalation history.</p>
+                <p className="mt-4 text-sm" style={{ color: "var(--sc-muted)" }}>
+                  No escalation history.
+                </p>
               ) : (
                 <ul className="mt-4 space-y-2">
                   {escalations.map((escalation) => (
-                    <li key={escalation.id} className="flex flex-wrap justify-between gap-2 rounded-lg bg-slate-950 p-3 text-sm">
+                    <li
+                      key={escalation.id}
+                      className="flex flex-wrap justify-between gap-2 rounded-lg p-3 text-sm"
+                      style={{ background: "var(--sc-surface-soft)" }}
+                    >
                       <span>{escalation.trigger_state} · {escalation.status}</span>
-                      <span className="text-slate-500">{new Date(escalation.created_at).toLocaleString()}</span>
+                      <span style={{ color: "var(--sc-muted)" }}>
+                        {new Date(escalation.created_at).toLocaleString()}
+                      </span>
                     </li>
                   ))}
                 </ul>

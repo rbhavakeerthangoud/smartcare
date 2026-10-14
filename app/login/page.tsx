@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BrandMark from "@/app/components/brand-mark";
 import { supabase } from "@/lib/supabase/client";
@@ -40,7 +41,31 @@ export default function LoginPage() {
           "Sign-in could not be recorded. Access was closed; please contact the administrator.",
         );
       }
-      router.replace("/");
+      let redirectUrl = "";
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const r = params.get("redirect");
+        if (r && r.startsWith("/")) {
+          redirectUrl = r;
+        }
+      }
+
+      if (!redirectUrl) {
+        const { data: roleRecord } = await supabase
+          .from("smartcare_user_roles")
+          .select("role")
+          .eq("user_id", data.user.id)
+          .maybeSingle();
+
+        const role = roleRecord?.role;
+        if (role === "PATIENT") redirectUrl = "/patient";
+        else if (role === "CLINICIAN") redirectUrl = "/clinical";
+        else if (role === "CAREGIVER") redirectUrl = "/caregiver";
+        else if (role === "ADMIN") redirectUrl = "/admin";
+        else redirectUrl = "/";
+      }
+
+      router.replace(redirectUrl);
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -55,13 +80,13 @@ export default function LoginPage() {
   return (
     <main className="grid min-h-screen place-items-center px-4 py-8 sm:px-6">
       <div className="grid w-full max-w-5xl overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_30px_90px_rgba(23,33,28,0.10)] lg:min-h-[610px] lg:grid-cols-[1.1fr_0.9fr]">
-        <section className="sc-login-hero relative isolate flex min-h-64 flex-col justify-between overflow-hidden bg-[linear-gradient(145deg,#174d39,#23684d_58%,#59836c)] p-7 text-white sm:p-10 lg:p-12">
+        <section className="sc-login-hero relative isolate flex min-h-64 flex-col justify-between overflow-hidden bg-[linear-gradient(145deg,#431232,#601D49_55%,#BD5579)] p-7 text-white sm:p-10 lg:p-12">
           <div className="absolute -right-16 -top-16 -z-10 h-72 w-72 rounded-full border border-white/10" />
           <div className="absolute -right-4 top-0 -z-10 h-52 w-52 rounded-full border border-white/10" />
           <div className="absolute bottom-20 right-14 -z-10 h-24 w-24 rounded-[2rem] border border-white/15 rotate-12" />
           <BrandMark />
           <div className="mt-14 max-w-lg lg:mt-auto lg:pb-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-100/80">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#FFEBB8]">
               Care, connected
             </p>
             <h1 className="mt-4 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
@@ -78,7 +103,7 @@ export default function LoginPage() {
 
         <section className="flex items-center justify-center p-6 sm:p-10 lg:p-12">
           <div className="w-full max-w-sm">
-            <p className="text-sm font-medium text-emerald-800">Welcome back</p>
+            <p className="text-sm font-medium text-[#601D49]">Welcome back</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
               Sign in to SmartCare
             </h2>
@@ -121,7 +146,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="min-h-12 w-full rounded-lg bg-emerald-800 px-4 py-3 font-semibold text-white shadow-sm hover:bg-emerald-900 disabled:opacity-60"
+                className="min-h-12 w-full rounded-lg bg-[#BD5579] px-4 py-3 font-semibold text-white shadow-sm hover:bg-[#9e3e5f] transition disabled:opacity-60"
               >
                 {submitting ? "Signing in…" : "Sign in"}
               </button>
@@ -129,6 +154,14 @@ export default function LoginPage() {
             <p className="mt-6 border-t border-slate-100 pt-5 text-xs leading-5 text-slate-500">
               Need an account? Contact your SmartCare administrator. Access to care information is limited by your assigned role and patient permissions.
             </p>
+            <div className="mt-4 text-center">
+              <Link
+                href="/"
+                className="text-xs font-semibold text-[#601D49] hover:text-[#BD5579] hover:underline"
+              >
+                ← Return to SmartCare Homepage
+              </Link>
+            </div>
           </div>
         </section>
       </div>

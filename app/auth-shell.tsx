@@ -18,14 +18,14 @@ function roleNavigation(role: SmartCareRole) {
   switch (role) {
     case "PATIENT":
       return [
-        { href: "/", label: "Dashboard" },
-        { href: "/#care-plans", label: "My care plan" },
-        { href: "/#tasks", label: "Tasks" },
-        { href: "/#upcoming-care", label: "Upcoming" },
-        { href: "/#documents", label: "Documents" },
-        { href: "/#profile", label: "Profile" },
-        { href: "/#care-team", label: "Care team" },
-        { href: "/#measurements", label: "Measurements" },
+        { href: "/patient", label: "Dashboard" },
+        { href: "/patient#care-plans", label: "My care plan" },
+        { href: "/patient#tasks", label: "Tasks" },
+        { href: "/patient#upcoming-care", label: "Upcoming" },
+        { href: "/patient#documents", label: "Documents" },
+        { href: "/patient#profile", label: "Profile" },
+        { href: "/patient#care-team", label: "Care team" },
+        { href: "/patient#measurements", label: "Measurements" },
       ];
     case "CAREGIVER":
       return [{ href: "/caregiver", label: "Care overview" }];
@@ -54,17 +54,14 @@ function ShellContent({ children }: { children: React.ReactNode }) {
   const [signOutError, setSignOutError] = useState("");
   const [theme, setTheme] = useState<Theme>("light");
   const isLogin = pathname === "/login";
+  const isPublicHome = pathname === "/";
+  const isPublic = isLogin || isPublicHome;
   const homeForRole = role ? dashboardPathForRole(role) : null;
 
-  useEffect(() => {
-    if (!loading && !session && !isLogin) router.replace("/login");
-  }, [isLogin, loading, router, session]);
-
-  useEffect(() => {
-    if (pathname === "/" && homeForRole && homeForRole !== "/") {
-      router.replace(homeForRole);
-    }
-  }, [homeForRole, pathname, router]);
+  // In demo preview mode, disable redirect to /login
+  // useEffect(() => {
+  //   if (!loading && !session && !isPublic) router.replace("/login");
+  // }, [isPublic, loading, router, session]);
 
   useEffect(() => {
     const storedTheme = window.localStorage.getItem("smartcare-theme");
@@ -76,9 +73,10 @@ function ShellContent({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  if (isLogin) return children;
+  if (isPublic) return children;
 
-  if (loading || !session || roleLoading) {
+  // If authenticated but role is still loading, show workspace preparation
+  if (session && (loading || roleLoading)) {
     return (
       <main className="grid min-h-screen place-items-center text-sm text-slate-600">
         <div className="text-center">
@@ -89,7 +87,8 @@ function ShellContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (roleError || !role) {
+  // If authenticated but role has an error or is unassigned
+  if (session && (roleError || !role)) {
     return (
       <main className="grid min-h-screen place-items-center px-6">
         <section className="sc-panel max-w-lg rounded-2xl p-8">
@@ -102,7 +101,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={() => void signOut().catch(() => setSignOutError("Could not sign out. Please retry."))}
-            className="mt-6 rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white"
+            className="mt-6 rounded-lg bg-[#BD5579] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#9e3e5f]"
           >
             Sign out
           </button>
@@ -112,7 +111,8 @@ function ShellContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!canAccessRolePath(role, pathname)) {
+  // If authenticated but trying to access an unauthorized path
+  if (session && role && !canAccessRolePath(role, pathname)) {
     return (
       <main className="grid min-h-screen place-items-center px-6">
         <section className="sc-panel max-w-lg rounded-2xl p-8">
@@ -120,18 +120,10 @@ function ShellContent({ children }: { children: React.ReactNode }) {
           <p className="mt-3 text-sm text-slate-600">
             Your role does not include this area. Return to your authorized dashboard.
           </p>
-          <Link href={homeForRole || "/"} className="mt-5 inline-flex min-h-11 items-center text-sm font-semibold text-emerald-800">
+          <Link href={homeForRole || "/"} className="mt-5 inline-flex min-h-11 items-center text-sm font-semibold text-[#601D49] hover:text-[#BD5579]">
             Return to your dashboard
           </Link>
         </section>
-      </main>
-    );
-  }
-
-  if (pathname === "/" && homeForRole && homeForRole !== "/") {
-    return (
-      <main className="grid min-h-[60vh] place-items-center text-sm text-slate-600">
-        Opening your workspace…
       </main>
     );
   }
@@ -147,13 +139,33 @@ function ShellContent({ children }: { children: React.ReactNode }) {
     setSignOutError("");
     try {
       await signOut();
-      router.replace("/login");
+      router.replace("/");
     } catch {
       setSignOutError("Could not sign out. Please retry.");
     }
   }
 
-  const navigation = roleNavigation(role);
+  const demoNavigation = [
+    { href: "/admin", label: "Hospital Admin" },
+    { href: "/clinical", label: "Doctor Portal" },
+    { href: "/patient", label: "Patient Portal" },
+    { href: "/research", label: "Research Analytics" },
+    { href: "/care-plans/new", label: "Create Care Plan" },
+  ];
+
+  const navigation = session && role
+    ? roleNavigation(role)
+    : (pathname.startsWith("/patient")
+        ? [
+            { href: "/patient", label: "Patient Dashboard" },
+            { href: "/patient#care-plans", label: "My care plan" },
+            { href: "/patient#tasks", label: "Tasks" },
+            { href: "/patient#upcoming-care", label: "Upcoming" },
+            { href: "/patient#documents", label: "Documents" },
+            { href: "/clinical", label: "Switch to Doctor Portal" },
+            { href: "/admin", label: "Switch to Hospital Admin" },
+          ]
+        : demoNavigation);
 
   return (
     <div className="min-h-screen">
@@ -163,10 +175,18 @@ function ShellContent({ children }: { children: React.ReactNode }) {
             <BrandMark />
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
-            <NotificationCenter userId={session.user.id} role={role} />
-            <span className="hidden rounded-md bg-slate-100 px-2.5 py-1.5 text-[0.68rem] font-semibold tracking-wide text-slate-600 sm:inline">
-              {role}
-            </span>
+            {session && role ? (
+              <>
+                <NotificationCenter userId={session.user.id} role={role} />
+                <span className="hidden rounded-md bg-slate-100 px-2.5 py-1.5 text-[0.68rem] font-semibold tracking-wide text-slate-600 sm:inline">
+                  {role}
+                </span>
+              </>
+            ) : (
+              <span className="hidden rounded-md border border-[#EA9D9D]/50 bg-[#FFEBB8] px-2.5 py-1 text-[0.68rem] font-bold tracking-wide text-[#4a1538] sm:inline">
+                Demo Preview Mode
+              </span>
+            )}
             <button
               type="button"
               onClick={toggleTheme}
@@ -175,13 +195,15 @@ function ShellContent({ children }: { children: React.ReactNode }) {
             >
               {theme === "dark" ? "Light" : "Dark"}
             </button>
-            <button
-              type="button"
-              onClick={() => void handleSignOut()}
-              className="min-h-10 rounded-lg px-2 text-sm font-medium text-slate-600 hover:bg-slate-100 sm:px-3"
-            >
-              Sign out
-            </button>
+            {session && (
+              <button
+                type="button"
+                onClick={() => void handleSignOut()}
+                className="min-h-10 rounded-lg px-2 text-sm font-medium text-slate-600 hover:bg-slate-100 sm:px-3"
+              >
+                Sign out
+              </button>
+            )}
           </div>
         </nav>
         <div className="border-t border-slate-100 px-4 py-2 lg:hidden">
@@ -207,9 +229,9 @@ function ShellContent({ children }: { children: React.ReactNode }) {
               <NavigationLink key={item.href} item={item} pathname={pathname} />
             ))}
           </nav>
-          <div className="mt-auto rounded-xl bg-emerald-50 p-4 text-sm text-emerald-950">
-            <p className="font-semibold">Care, connected.</p>
-            <p className="mt-1 text-xs leading-5 text-emerald-900/80">
+          <div className="mt-auto rounded-xl border border-[#EA9D9D]/30 bg-[#601D49]/10 p-4 text-sm text-[#4a1538] dark:text-[#FFEBB8]">
+            <p className="font-semibold text-[#601D49] dark:text-[#FFEBB8]">Care, connected.</p>
+            <p className="mt-1 text-xs leading-5 text-[#601D49]/80 dark:text-[#FFEBB8]/80">
               Your care information is shown according to your assigned access.
             </p>
           </div>
@@ -229,10 +251,10 @@ function NavigationLink({
   pathname: string;
   compact?: boolean;
 }) {
+  const baseHref = item.href.split("#")[0];
   const active =
-    item.href === "/"
-      ? pathname === "/"
-      : pathname === item.href || pathname.startsWith(`${item.href}/`);
+    pathname === baseHref ||
+    pathname.startsWith(`${baseHref}/`);
   return (
     <Link
       href={item.href}
@@ -241,14 +263,14 @@ function NavigationLink({
         compact ? "shrink-0" : "w-full"
       } ${
         active
-          ? "bg-emerald-100 text-emerald-950"
-          : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+          ? "bg-[#601D49]/15 text-[#601D49] font-semibold dark:bg-[#601D49]/40 dark:text-[#FFEBB8]"
+          : "text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
       }`}
     >
       <span
         aria-hidden="true"
         className={`h-1.5 w-1.5 rounded-full ${
-          active ? "bg-emerald-700" : "bg-slate-300"
+          active ? "bg-[#BD5579]" : "bg-slate-300"
         }`}
       />
       {item.label}

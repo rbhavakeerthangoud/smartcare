@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { generateOccurrences } from "@/lib/smartcare/recurrence-engine";
@@ -9,8 +9,14 @@ export default function NewTaskPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-slate-950 p-8 text-white">
-          Loading task form...
+        <main
+          className="min-h-screen px-4 py-8 sm:px-6"
+          style={{ background: "var(--sc-background)" }}
+        >
+          <div className="mx-auto max-w-2xl">
+            <div className="sc-skeleton h-8 w-48 rounded" />
+            <div className="mt-4 sc-skeleton h-64 rounded-xl" />
+          </div>
         </main>
       }
     >
@@ -28,6 +34,15 @@ function NewTaskForm() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isDemo, setIsDemo] = useState(false);
+
+  useEffect(() => {
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session || (carePlanId && carePlanId.startsWith("demo-"))) {
+        setIsDemo(true);
+      }
+    });
+  }, [carePlanId]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -117,6 +132,19 @@ function NewTaskForm() {
 
       if (generatedOccurrences.length === 0) {
         throw new Error("The selected schedule does not generate any occurrences.");
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session || isDemo || (carePlanId && carePlanId.startsWith("demo-"))) {
+        setSubmitted(true);
+        form.reset();
+        setTimeout(() => {
+          router.push(`/care-plans/${carePlanId || "demo-care-plan-1"}`);
+        }, 1000);
+        return;
       }
 
       /*
@@ -221,137 +249,114 @@ function NewTaskForm() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white">
+    <main
+      className="min-h-screen px-4 pb-16 pt-8 sm:px-6"
+      style={{ background: "var(--sc-background)", color: "var(--sc-text)" }}
+    >
+      <div className="mx-auto max-w-2xl">
 
-      {/* Header */}
-      <header className="border-b border-slate-800">
-        <div className="mx-auto max-w-5xl px-6 py-5">
-          <h1 className="text-2xl font-bold">SmartCare</h1>
+        {/* Breadcrumb */}
+        {carePlanId && (
+          <nav
+            className="mb-6 flex items-center gap-2 text-xs"
+            style={{ color: "var(--sc-muted)" }}
+          >
+            <a
+              href={`/care-plans/${carePlanId}`}
+              style={{ color: "var(--sc-primary)" }}
+              className="hover:underline"
+            >
+              Care plan
+            </a>
+            <span>/</span>
+            <span>Add task</span>
+          </nav>
+        )}
 
-          <p className="text-sm text-slate-400">
-            Add Care Plan Task
+        {/* Page heading */}
+        <div className="sc-animate-fade-up">
+          <p className="sc-section-label">Task Creation</p>
+          <h1 className="sc-page-title mt-2">Add a care plan task</h1>
+          <p className="mt-2 text-sm" style={{ color: "var(--sc-muted)" }}>
+            Add an activity that is already part of the patient&apos;s prescribed care plan.
           </p>
-        </div>
-      </header>
 
-      {/* Content */}
-      <section className="mx-auto max-w-5xl px-6 py-10">
-
-        <div className="mb-8">
-
-          <h2 className="text-3xl font-bold">
-            Add Task
-          </h2>
-
-          <p className="mt-2 text-slate-400">
-            Add an activity that is already part of the
-            patient&apos;s prescribed care plan.
-          </p>
-
-          {carePlanId && (
-            <p className="mt-3 text-xs text-slate-500">
-              Care Plan: {carePlanId}
-            </p>
+          {isDemo && (
+            <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+              <span className="rounded-full bg-amber-500/20 px-2 py-0.5 font-semibold text-amber-300">
+                DEMO PREVIEW
+              </span>
+              <span>
+                Preview Mode — Submitting this form simulates task schedule calculation and returns to the care plan without writing to the database.
+              </span>
+            </div>
           )}
-
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-8"
-        >
+        <form onSubmit={handleSubmit} className="mt-8 space-y-6 sc-animate-fade-up-delay-1">
 
           {/* ====================================================== */}
           {/* TASK INFORMATION */}
           {/* ====================================================== */}
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
-
-            <h3 className="text-xl font-semibold">
-              Task Information
-            </h3>
+          <section className="sc-card-lg">
+            <h2 className="text-base font-semibold">Task Information</h2>
 
             <div className="mt-6 space-y-5">
 
               {/* Task Type */}
               <div>
-                <label className="mb-2 block text-sm text-slate-300">
+                <label htmlFor="type" className="sc-form-label">
                   Task Type
                 </label>
 
                 <select
+                  id="type"
                   name="type"
                   required
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-emerald-700"
+                  className="sc-select"
                 >
-                  <option value="">
-                    Select task type
-                  </option>
-
-                  <option value="medication">
-                    Medication
-                  </option>
-
-                  <option value="lab_test">
-                    Laboratory Test
-                  </option>
-
-                  <option value="appointment">
-                    Appointment
-                  </option>
-
-                  <option value="exercise">
-                    Exercise / Physiotherapy
-                  </option>
-
-                  <option value="measurement">
-                    Health Measurement
-                  </option>
-
-                  <option value="wound_care">
-                    Wound Care
-                  </option>
-
-                  <option value="document">
-                    Document
-                  </option>
-
-                  <option value="questionnaire">
-                    Questionnaire / Communication
-                  </option>
-
-                  <option value="other">
-                    Other Activity
-                  </option>
+                  <option value="">Select task type</option>
+                  <option value="medication">Medication</option>
+                  <option value="lab_test">Laboratory Test</option>
+                  <option value="appointment">Appointment</option>
+                  <option value="exercise">Exercise / Physiotherapy</option>
+                  <option value="measurement">Health Measurement</option>
+                  <option value="wound_care">Wound Care</option>
+                  <option value="document">Document</option>
+                  <option value="questionnaire">Questionnaire / Communication</option>
+                  <option value="other">Other Activity</option>
                 </select>
               </div>
 
               {/* Task Name */}
               <div>
-                <label className="mb-2 block text-sm text-slate-300">
+                <label htmlFor="name" className="sc-form-label">
                   Task Name
                 </label>
 
                 <input
                   type="text"
+                  id="name"
                   name="name"
                   placeholder="Example: Morning medication"
                   required
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-emerald-700"
+                  className="sc-input"
                 />
               </div>
 
               {/* Description */}
               <div>
-                <label className="mb-2 block text-sm text-slate-300">
+                <label htmlFor="description" className="sc-form-label">
                   Description
                 </label>
 
                 <textarea
+                  id="description"
                   name="description"
                   rows={4}
                   placeholder="Describe the prescribed activity or completion requirement."
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-emerald-700"
+                  className="sc-input"
                 />
               </div>
 
@@ -362,16 +367,13 @@ function NewTaskForm() {
           {/* SCHEDULE */}
           {/* ====================================================== */}
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="sc-card-lg">
+            <h2 className="text-base font-semibold">Schedule</h2>
 
-            <h3 className="text-xl font-semibold">
-              Schedule
-            </h3>
-
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="mt-2 text-sm" style={{ color: "var(--sc-muted)" }}>
               Define when this task is valid for execution.
             </p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs sc-form-hint">
               Scheduled times use the timezone of the device that creates the task.
             </p>
 
@@ -379,120 +381,111 @@ function NewTaskForm() {
 
               {/* Start Date */}
               <div>
-                <label className="mb-2 block text-sm text-slate-300">
+                <label htmlFor="startDate" className="sc-form-label">
                   Start Date
                 </label>
 
                 <input
                   type="date"
+                  id="startDate"
                   name="startDate"
                   required
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-emerald-700"
+                  className="sc-input"
                 />
               </div>
 
               {/* End Date */}
               <div>
-                <label className="mb-2 block text-sm text-slate-300">
+                <label htmlFor="endDate" className="sc-form-label">
                   End Date
                 </label>
 
                 <input
                   type="date"
+                  id="endDate"
                   name="endDate"
                   required
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-emerald-700"
+                  className="sc-input"
                 />
               </div>
 
-              {/* Allowed Start */}
+              {/* Allowed Start Time */}
               <div>
-                <label className="mb-2 block text-sm text-slate-300">
+                <label htmlFor="allowedStartTime" className="sc-form-label">
                   Allowed Start Time
                 </label>
 
                 <input
                   type="time"
+                  id="allowedStartTime"
                   name="allowedStartTime"
                   required
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-emerald-700"
+                  className="sc-input"
                 />
               </div>
 
-              {/* Allowed End */}
+              {/* Allowed End Time */}
               <div>
-                <label className="mb-2 block text-sm text-slate-300">
+                <label htmlFor="allowedEndTime" className="sc-form-label">
                   Allowed End Time
                 </label>
 
                 <input
                   type="time"
+                  id="allowedEndTime"
                   name="allowedEndTime"
                   required
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-emerald-700"
+                  className="sc-input"
                 />
               </div>
 
               {/* Frequency */}
               <div>
-                <label className="mb-2 block text-sm text-slate-300">
+                <label htmlFor="frequency" className="sc-form-label">
                   Frequency
                 </label>
 
                 <select
+                  id="frequency"
                   name="frequency"
                   required
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-emerald-700"
+                  className="sc-select"
                 >
-                  <option value="">
-                    Select frequency
-                  </option>
-
-                  <option value="once">
-                    Once
-                  </option>
-
-                  <option value="daily">
-                    Daily
-                  </option>
-
-                  <option value="weekly">
-                    Weekly
-                  </option>
-
-                  <option value="every_n_days">
-                    Every N days
-                  </option>
-
-                  <option value="selected_weekdays">
-                    Selected weekdays
-                  </option>
-
-                  <option value="custom">
-                    Custom (treated as once)
-                  </option>
+                  <option value="">Select frequency</option>
+                  <option value="once">Once</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="every_n_days">Every N days</option>
+                  <option value="selected_weekdays">Selected weekdays</option>
+                  <option value="custom">Custom (treated as once)</option>
                 </select>
               </div>
 
+              {/* Interval Days */}
               <div>
-                <label className="mb-2 block text-sm text-slate-300">
+                <label htmlFor="intervalDays" className="sc-form-label">
                   Repeat interval (for Every N days)
                 </label>
                 <input
                   type="number"
+                  id="intervalDays"
                   name="intervalDays"
                   min="1"
                   max="365"
                   defaultValue="1"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-emerald-700"
+                  className="sc-input"
                 />
               </div>
 
+              {/* Weekdays */}
               <fieldset className="md:col-span-2">
-                <legend className="mb-2 block text-sm text-slate-300">
+                <legend className="sc-form-label mb-2">
                   Weekdays (for Selected weekdays)
                 </legend>
-                <div className="flex flex-wrap gap-4 text-sm text-slate-400">
+                <div
+                  className="flex flex-wrap gap-4 text-sm"
+                  style={{ color: "var(--sc-text)" }}
+                >
                   {[
                     ["0", "Sun"],
                     ["1", "Mon"],
@@ -502,7 +495,11 @@ function NewTaskForm() {
                     ["5", "Fri"],
                     ["6", "Sat"],
                   ].map(([value, label]) => (
-                    <label key={value} className="flex items-center gap-2">
+                    <label
+                      key={value}
+                      className="flex items-center gap-2"
+                      style={{ color: "var(--sc-text)" }}
+                    >
                       <input type="checkbox" name="weekdays" value={value} />
                       {label}
                     </label>
@@ -510,19 +507,22 @@ function NewTaskForm() {
                 </div>
               </fieldset>
 
+              {/* Exclude Date */}
               <div>
-                <label className="mb-2 block text-sm text-slate-300">
+                <label htmlFor="excludedDate" className="sc-form-label">
                   Exclude date (optional)
                 </label>
                 <input
                   type="date"
+                  id="excludedDate"
                   name="excludedDate"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-emerald-700"
+                  className="sc-input"
                 />
               </div>
 
+              {/* Additional Daily Time Window */}
               <div>
-                <label className="mb-2 block text-sm text-slate-300">
+                <label className="sc-form-label">
                   Additional daily time window (optional)
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -530,47 +530,34 @@ function NewTaskForm() {
                     type="time"
                     name="secondStartTime"
                     aria-label="Additional window start time"
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-3 outline-none focus:border-emerald-700"
+                    className="sc-input"
                   />
                   <input
                     type="time"
                     name="secondEndTime"
                     aria-label="Additional window end time"
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-3 outline-none focus:border-emerald-700"
+                    className="sc-input"
                   />
                 </div>
               </div>
 
               {/* Priority */}
               <div>
-                <label className="mb-2 block text-sm text-slate-300">
+                <label htmlFor="priority" className="sc-form-label">
                   Priority
                 </label>
 
                 <select
+                  id="priority"
                   name="priority"
                   required
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-emerald-700"
+                  className="sc-select"
                 >
-                  <option value="">
-                    Select priority
-                  </option>
-
-                  <option value="low">
-                    Low
-                  </option>
-
-                  <option value="normal">
-                    Normal
-                  </option>
-
-                  <option value="high">
-                    High
-                  </option>
-
-                  <option value="critical">
-                    Critical
-                  </option>
+                  <option value="">Select priority</option>
+                  <option value="low">Low</option>
+                  <option value="normal">Normal</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
                 </select>
               </div>
 
@@ -581,13 +568,10 @@ function NewTaskForm() {
           {/* COMPLETION CRITERIA */}
           {/* ====================================================== */}
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="sc-card-lg">
+            <h2 className="text-base font-semibold">Completion Criteria</h2>
 
-            <h3 className="text-xl font-semibold">
-              Completion Criteria
-            </h3>
-
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="mt-2 text-sm" style={{ color: "var(--sc-muted)" }}>
               Define what counts as completion of this task.
             </p>
 
@@ -595,53 +579,38 @@ function NewTaskForm() {
 
               {/* Completion Criteria */}
               <div>
-                <label className="mb-2 block text-sm text-slate-300">
+                <label htmlFor="completionCriteria" className="sc-form-label">
                   Completion Criteria
                 </label>
 
                 <textarea
+                  id="completionCriteria"
                   name="completionCriteria"
                   rows={3}
                   required
                   placeholder="Example: Patient confirms that the prescribed activity was completed."
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-emerald-700"
+                  className="sc-input"
                 />
               </div>
 
-              {/* Verification */}
+              {/* Verification Method */}
               <div>
-                <label className="mb-2 block text-sm text-slate-300">
+                <label htmlFor="verificationMethod" className="sc-form-label">
                   Verification Method
                 </label>
 
                 <select
+                  id="verificationMethod"
                   name="verificationMethod"
                   required
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-emerald-700"
+                  className="sc-select"
                 >
-                  <option value="">
-                    Select verification method
-                  </option>
-
-                  <option value="patient_report">
-                    Patient Report
-                  </option>
-
-                  <option value="document">
-                    Document / Report
-                  </option>
-
-                  <option value="appointment">
-                    Appointment Record
-                  </option>
-
-                  <option value="iot">
-                    IoT / Device Event
-                  </option>
-
-                  <option value="multiple">
-                    Multiple Evidence Sources
-                  </option>
+                  <option value="">Select verification method</option>
+                  <option value="patient_report">Patient Report</option>
+                  <option value="document">Document / Report</option>
+                  <option value="appointment">Appointment Record</option>
+                  <option value="iot">IoT / Device Event</option>
+                  <option value="multiple">Multiple Evidence Sources</option>
                 </select>
               </div>
 
@@ -652,64 +621,45 @@ function NewTaskForm() {
           {/* DEPENDENCY */}
           {/* ====================================================== */}
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="sc-card-lg">
+            <h2 className="text-base font-semibold">Dependency</h2>
 
-            <h3 className="text-xl font-semibold">
-              Dependency
-            </h3>
-
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="mt-2 text-sm" style={{ color: "var(--sc-muted)" }}>
               Dependencies will allow SmartCare to determine
               whether another task must be completed first.
             </p>
 
             <div className="mt-6">
-
-              <label className="mb-2 block text-sm text-slate-300">
+              <label htmlFor="dependencyType" className="sc-form-label">
                 Dependency Type
               </label>
 
               <select
+                id="dependencyType"
                 name="dependencyType"
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-emerald-700"
+                className="sc-select"
               >
-                <option value="none">
-                  No Dependency
-                </option>
-
-                <option value="before">
-                  Must occur before another task
-                </option>
-
-                <option value="required_before">
-                  Required before this task
-                </option>
-
-                <option value="after">
-                  Must occur after another task
-                </option>
+                <option value="none">No Dependency</option>
+                <option value="before">Must occur before another task</option>
+                <option value="required_before">Required before this task</option>
+                <option value="after">Must occur after another task</option>
               </select>
-
             </div>
           </section>
 
           {/* ====================================================== */}
-          {/* SAFETY */}
+          {/* IMPORTANT */}
           {/* ====================================================== */}
 
-          <section className="rounded-2xl border border-yellow-900 bg-yellow-950/30 p-6">
+          <section className="sc-alert-warning">
+            <h2 className="text-base font-semibold">Important</h2>
 
-            <h3 className="font-semibold text-yellow-400">
-              Important
-            </h3>
-
-            <p className="mt-2 text-sm leading-6 text-yellow-200/80">
+            <p className="mt-2 text-sm leading-6">
               SmartCare records and monitors existing prescribed
               instructions. The system does not independently
               create medical treatment, diagnose conditions, or
               change prescribed treatment.
             </p>
-
           </section>
 
           {/* ====================================================== */}
@@ -717,16 +667,9 @@ function NewTaskForm() {
           {/* ====================================================== */}
 
           {errorMessage && (
-            <div className="rounded-xl border border-red-800 bg-red-950/40 p-5">
-
-              <h3 className="font-semibold text-red-400">
-                Could not create task
-              </h3>
-
-              <p className="mt-2 text-sm text-red-200/80">
-                {errorMessage}
-              </p>
-
+            <div className="sc-alert-error">
+              <h3 className="font-semibold">Could not create task</h3>
+              <p className="mt-2 text-sm">{errorMessage}</p>
             </div>
           )}
 
@@ -735,17 +678,12 @@ function NewTaskForm() {
           {/* ====================================================== */}
 
           {submitted && (
-            <div className="rounded-xl border border-green-800 bg-green-950/40 p-5">
-
-              <h3 className="font-semibold text-green-400">
-                Task Created
-              </h3>
-
-              <p className="mt-2 text-sm text-green-200/80">
+            <div className="sc-alert-success">
+              <h3 className="font-semibold">Task Created {isDemo ? "(Simulated)" : ""}</h3>
+              <p className="mt-2 text-sm">
                 The task and its occurrences were saved successfully.
                 Returning to the care plan...
               </p>
-
             </div>
           )}
 
@@ -754,19 +692,17 @@ function NewTaskForm() {
           {/* ====================================================== */}
 
           <div className="flex justify-end">
-
             <button
               type="submit"
               disabled={loading}
-              className="rounded-lg bg-emerald-800 px-6 py-3 font-medium hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50"
+              className="sc-btn-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? "Saving..." : "Add Task"}
             </button>
-
           </div>
 
         </form>
-      </section>
+      </div>
     </main>
   );
 }

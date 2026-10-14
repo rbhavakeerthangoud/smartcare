@@ -558,16 +558,20 @@ test("records notification lifecycle through the injected repository and adapter
 });
 
 test("routes each role to its workspace and restricts role-specific pages", () => {
-  assert.equal(dashboardPathForRole("PATIENT"), "/");
+  assert.equal(dashboardPathForRole("PATIENT"), "/patient");
   assert.equal(dashboardPathForRole("CAREGIVER"), "/caregiver");
   assert.equal(dashboardPathForRole("CLINICIAN"), "/clinical");
   assert.equal(dashboardPathForRole("ADMIN"), "/admin");
 
   assert.equal(canAccessRolePath("PATIENT", "/care-plans/plan-1"), true);
   assert.equal(canAccessRolePath("PATIENT", "/tasks/new"), false);
+  assert.equal(canAccessRolePath("PATIENT", "/patient"), true);
+  assert.equal(canAccessRolePath("CAREGIVER", "/patient"), false);
   assert.equal(canAccessRolePath("CAREGIVER", "/clinical"), false);
+  assert.equal(canAccessRolePath("CLINICIAN", "/patient"), false);
   assert.equal(canAccessRolePath("CLINICIAN", "/research"), true);
   assert.equal(canAccessRolePath("CLINICIAN", "/admin"), false);
+  assert.equal(canAccessRolePath("ADMIN", "/patient"), true);
   assert.equal(canAccessRolePath("ADMIN", "/admin"), true);
   assert.equal(canAccessRolePath("ADMIN", "/tasks/new"), true);
 });

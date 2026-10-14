@@ -134,10 +134,10 @@ async function fetchAllRows(table: TableName, columns: string) {
   for (let offset = 0; ; offset += PAGE_SIZE) {
     const { data, error } = await supabase
       .from(table)
-      .select(columns)
+      .select<string, Record<string, unknown>>(columns)
       .range(offset, offset + PAGE_SIZE - 1);
     if (error) throw error;
-    const page = (data || []) as Record<string, unknown>[];
+    const page = data || [];
     rows.push(...page);
     if (page.length < PAGE_SIZE) return rows;
   }
@@ -192,9 +192,154 @@ function isWithinRange(dateValue: string | null | undefined, range: RangeKey) {
   return true;
 }
 
+function getDemoResearchDataset(): AnalyticsDataSet {
+  const now = new Date();
+  const days: string[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    days.push(d.toISOString().slice(0, 10));
+  }
+
+  const patientRows = Array.from({ length: 6 }, (_, i) => ({ id: `p-${i + 1}` }));
+  const planRows = patientRows.map((p, i) => ({
+    id: `cp-${i + 1}`,
+    patient_id: p.id,
+    name: i % 2 === 0 ? `Cardiac Recovery Regimen ${i + 1}` : `Orthopedic Mobility Protocol ${i + 1}`,
+  }));
+
+  const taskTypes = ["MEDICATION", "MEASUREMENT", "WOUND_CARE", "EXERCISE", "APPOINTMENT", "DOCUMENT"];
+  const taskRows: AnalyticsDataSet["taskRows"] = [];
+  planRows.forEach((plan, planIdx) => {
+    taskTypes.forEach((type, tIdx) => {
+      taskRows.push({
+        id: `t-${planIdx}-${tIdx}`,
+        care_plan_id: plan.id,
+        type,
+        name: `${type.charAt(0) + type.slice(1).toLowerCase()} Task ${tIdx + 1}`,
+        verification_method: tIdx % 2 === 0 ? "PATIENT_REPORT" : "DEVICE_INTEGRATION",
+        created_at: `${days[0]}T08:00:00Z`,
+      });
+    });
+  });
+
+  const occurrenceRows: AnalyticsDataSet["occurrenceRows"] = [];
+  const eventRows: AnalyticsDataSet["eventRows"] = [];
+  const documentRows: AnalyticsDataSet["documentRows"] = [];
+
+  let occCounter = 0;
+  days.forEach((day, dayIdx) => {
+    taskRows.slice(0, 8).forEach((task) => {
+      occCounter++;
+      const occId = `occ-${occCounter}`;
+      const isCompleted = (dayIdx + occCounter) % 5 !== 0;
+      const isLate = (dayIdx + occCounter) % 7 === 0;
+      const status = isCompleted ? (isLate ? "LATE" : "COMPLETED") : (dayIdx > 25 ? "PENDING" : "MISSED");
+
+      occurrenceRows.push({
+        id: occId,
+        task_id: task.id,
+        occurrence_date: day,
+        time_zone: "UTC",
+        allowed_start_time: "08:00:00",
+        allowed_end_time: "12:00:00",
+        status,
+        completed_at: isCompleted ? `${day}T09:30:00Z` : null,
+        completion_source: isCompleted ? "PATIENT" : null,
+      });
+
+      if (isCompleted) {
+        eventRows.push({
+          id: `ev-${occCounter}`,
+          task_id: task.id,
+          occurrence_id: occId,
+          event_time: `${day}T09:30:00Z`,
+          source: occCounter % 3 === 0 ? "DEVICE" : "PATIENT",
+          value: "Recorded",
+          confidence: 0.95,
+          notes: null,
+        });
+      }
+
+      if (task.type === "DOCUMENT" && isCompleted) {
+        documentRows.push({
+          id: `doc-${occCounter}`,
+          task_id: task.id,
+          occurrence_id: occId,
+          uploaded_at: `${day}T09:30:00Z`,
+          file_name: `Report_${day}.pdf`,
+          document_category: "CLINICAL_DISCHARGE",
+        });
+      }
+    });
+  });
+
+  const dependencyRows: AnalyticsDataSet["dependencyRows"] = [
+    {
+      care_plan_id: planRows[0].id,
+      prerequisite_task_id: taskRows[0].id,
+      dependent_task_id: taskRows[1].id,
+      dependency_type: "REQUIRED_BEFORE",
+    },
+    {
+      care_plan_id: planRows[1].id,
+      prerequisite_task_id: taskRows[2].id,
+      dependent_task_id: taskRows[3].id,
+      dependency_type: "REQUIRED_BEFORE",
+    },
+  ];
+
+  const escalationRows: AnalyticsDataSet["escalationRows"] = [
+    {
+      id: "esc-1",
+      care_plan_id: planRows[0].id,
+      task_id: taskRows[0].id,
+      occurrence_id: occurrenceRows[5]?.id,
+      trigger_state: "MISSED",
+      priority: "HIGH",
+      status: "RESOLVED",
+      created_at: `${days[15]}T12:05:00Z`,
+      resolved_at: `${days[15]}T13:00:00Z`,
+    },
+    {
+      id: "esc-2",
+      care_plan_id: planRows[1].id,
+      task_id: taskRows[2].id,
+      occurrence_id: occurrenceRows[12]?.id,
+      trigger_state: "CONFLICTING",
+      priority: "MEDIUM",
+      status: "OPEN",
+      created_at: `${days[28]}T14:30:00Z`,
+      resolved_at: null,
+    },
+  ];
+
+  const notificationRows: AnalyticsDataSet["notificationRows"] = [
+    {
+      id: "notif-1",
+      channel: "WEB",
+      status: "DELIVERED",
+      created_at: `${days[28]}T14:35:00Z`,
+      read_at: `${days[28]}T14:40:00Z`,
+    },
+  ];
+
+  return {
+    patientRows,
+    planRows,
+    taskRows,
+    occurrenceRows,
+    eventRows,
+    documentRows,
+    dependencyRows,
+    escalationRows,
+    notificationRows,
+  };
+}
+
 export default function ResearchDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isDemo, setIsDemo] = useState(false);
   const [range, setRange] = useState<RangeKey>("30d");
   const [taskTypeFilter, setTaskTypeFilter] = useState<string>("ALL");
   const [dataset, setDataset] = useState<AnalyticsDataSet | null>(null);
@@ -220,35 +365,47 @@ export default function ResearchDashboardPage() {
       setError("");
 
       try {
-        const [patientRows, planRows, taskRows, occurrenceRows, eventRows, documentRows, dependencyRows, escalationRows] = await Promise.all([
-          fetchAllRows("patients", "id"),
-          fetchAllRows("care_plans", "id,patient_id,name"),
-          fetchAllRows("tasks", "id,care_plan_id,type,name,verification_method,created_at"),
-          fetchAllRows("task_occurrences", "id,task_id,occurrence_date,time_zone,allowed_start_time,allowed_end_time,status,completed_at,completion_source"),
-          fetchAllRows("events", "id,task_id,occurrence_id,event_time,source,value,confidence,notes"),
-          fetchAllRows("documents", "id,task_id,occurrence_id,uploaded_at,file_name,document_category"),
-          fetchAllRows("dependencies", "care_plan_id,prerequisite_task_id,dependent_task_id,dependency_type"),
-          fetchAllRows("escalations", "id,care_plan_id,task_id,occurrence_id,trigger_state,priority,status,created_at,resolved_at"),
-        ]);
-
-        let notificationRows: AnalyticsDataSet["notificationRows"] = [];
+        let datasetValue: AnalyticsDataSet | null = null;
         try {
-          notificationRows = (await fetchAllRows("smartcare_notifications", "id,channel,status,created_at,read_at,acknowledged_at")) as AnalyticsDataSet["notificationRows"];
+          const [patientRows, planRows, taskRows, occurrenceRows, eventRows, documentRows, dependencyRows, escalationRows] = await Promise.all([
+            fetchAllRows("patients", "id"),
+            fetchAllRows("care_plans", "id,patient_id,name"),
+            fetchAllRows("tasks", "id,care_plan_id,type,name,verification_method,created_at"),
+            fetchAllRows("task_occurrences", "id,task_id,occurrence_date,time_zone,allowed_start_time,allowed_end_time,status,completed_at,completion_source"),
+            fetchAllRows("events", "id,task_id,occurrence_id,event_time,source,value,confidence,notes"),
+            fetchAllRows("documents", "id,task_id,occurrence_id,uploaded_at,file_name,document_category"),
+            fetchAllRows("dependencies", "care_plan_id,prerequisite_task_id,dependent_task_id,dependency_type"),
+            fetchAllRows("escalations", "id,care_plan_id,task_id,occurrence_id,trigger_state,priority,status,created_at,resolved_at"),
+          ]);
+
+          let notificationRows: AnalyticsDataSet["notificationRows"] = [];
+          try {
+            notificationRows = (await fetchAllRows("smartcare_notifications", "id,channel,status,created_at,read_at,acknowledged_at")) as AnalyticsDataSet["notificationRows"];
+          } catch {
+            notificationRows = [];
+          }
+
+          if (patientRows.length > 0) {
+            datasetValue = {
+              patientRows: patientRows as AnalyticsDataSet["patientRows"],
+              planRows: planRows as AnalyticsDataSet["planRows"],
+              taskRows: taskRows as AnalyticsDataSet["taskRows"],
+              occurrenceRows: occurrenceRows as AnalyticsDataSet["occurrenceRows"],
+              eventRows: eventRows as AnalyticsDataSet["eventRows"],
+              documentRows: documentRows as AnalyticsDataSet["documentRows"],
+              dependencyRows: dependencyRows as AnalyticsDataSet["dependencyRows"],
+              escalationRows: escalationRows as AnalyticsDataSet["escalationRows"],
+              notificationRows,
+            };
+          }
         } catch {
-          notificationRows = [];
+          // If unauthenticated or query denied by RLS, proceed to demo preview dataset
         }
 
-        const datasetValue: AnalyticsDataSet = {
-          patientRows: patientRows as AnalyticsDataSet["patientRows"],
-          planRows: planRows as AnalyticsDataSet["planRows"],
-          taskRows: taskRows as AnalyticsDataSet["taskRows"],
-          occurrenceRows: occurrenceRows as AnalyticsDataSet["occurrenceRows"],
-          eventRows: eventRows as AnalyticsDataSet["eventRows"],
-          documentRows: documentRows as AnalyticsDataSet["documentRows"],
-          dependencyRows: dependencyRows as AnalyticsDataSet["dependencyRows"],
-          escalationRows: escalationRows as AnalyticsDataSet["escalationRows"],
-          notificationRows,
-        };
+        if (!datasetValue) {
+          if (active) setIsDemo(true);
+          datasetValue = getDemoResearchDataset();
+        }
 
         const tasks = datasetValue.taskRows;
         const occurrences = datasetValue.occurrenceRows;
@@ -257,6 +414,7 @@ export default function ResearchDashboardPage() {
         const plans = datasetValue.planRows;
         const dependencies = datasetValue.dependencyRows;
         const escalations = datasetValue.escalationRows;
+        const notificationRows = datasetValue.notificationRows;
         const taskMap = new Map(tasks.map((task) => [task.id, task]));
         const occurrenceStates = new Map<string, ExecutionState>();
         const stateCounts = Object.fromEntries(STATE_ORDER.map((state) => [state, 0]));
@@ -277,10 +435,19 @@ export default function ResearchDashboardPage() {
             occurrence,
             events: events
               .filter((event) => event.occurrence_id === occurrence.id)
-              .map((event) => ({ ...event, occurrence_id: occurrence.id })),
+              .map((event) => ({
+                ...event,
+                id: event.id ?? undefined,
+                occurrence_id: occurrence.id,
+              })),
             documents: documents
               .filter((document) => document.occurrence_id === occurrence.id)
-              .map((document) => ({ ...document, occurrence_id: document.occurrence_id || occurrence.id })),
+              .map((document) => ({
+                ...document,
+                id: document.id ?? undefined,
+                file_name: document.file_name ?? undefined,
+                occurrence_id: document.occurrence_id || occurrence.id,
+              })),
           });
           occurrenceStates.set(occurrence.id, result.state);
           stateCounts[result.state] = (stateCounts[result.state] || 0) + 1;
@@ -409,13 +576,32 @@ export default function ResearchDashboardPage() {
           appointmentCounts.total += 1;
           const occurrence = latestOccurrenceByTask.get(task.id);
           if (!occurrence) continue;
+          const occurrenceStatus = (occurrence.status || "").toUpperCase();
+          const appointmentEvent = events.find(
+            (event) =>
+              event.occurrence_id === occurrence.id &&
+              event.source === "APPOINTMENT",
+          );
+          const appointmentEventValue = (appointmentEvent?.value || "").toUpperCase();
           const state = occurrenceStates.get(occurrence.id);
-          if (state === "ON_TIME") appointmentCounts.completed += 1;
-          else if (state === "LATE") appointmentCounts.missed += 1;
-          else if (state === "MISSED") appointmentCounts.missed += 1;
-          else if (state === "CANCELLED") appointmentCounts.cancelled += 1;
-          else if (state === "RESCHEDULED") appointmentCounts.rescheduled += 1;
-          else appointmentCounts.scheduled += 1;
+
+          if (
+            occurrenceStatus === "CANCELLED" ||
+            appointmentEventValue === "CANCELLED"
+          ) {
+            appointmentCounts.cancelled += 1;
+          } else if (
+            occurrenceStatus === "RESCHEDULED" ||
+            appointmentEventValue === "RESCHEDULED"
+          ) {
+            appointmentCounts.rescheduled += 1;
+          } else if (state === "ON_TIME") {
+            appointmentCounts.completed += 1;
+          } else if (state === "LATE" || state === "MISSED") {
+            appointmentCounts.missed += 1;
+          } else {
+            appointmentCounts.scheduled += 1;
+          }
         }
 
         if (!active) return;
@@ -563,6 +749,22 @@ export default function ResearchDashboardPage() {
           </div>
         </header>
 
+        {isDemo && (
+          <div
+            className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#EA9D9D]/40 bg-[#601D49]/25 p-4 text-xs text-[#FFEBB8]"
+          >
+            <div className="flex items-center gap-2">
+              <span className="rounded bg-[#FFEBB8] px-2 py-0.5 font-bold text-[#4a1538]">
+                DEMO PREVIEW
+              </span>
+              <span>
+                Viewing research analytics in demo preview mode with synthetic cohort data. Protected hospital and patient databases remain secured behind authorization.
+              </span>
+            </div>
+            <span className="text-[#EA9D9D]">Simulated cohort metrics</span>
+          </div>
+        )}
+
         {error && (
           <p role="alert" className="mt-6 rounded-xl border border-red-800 bg-red-950/40 p-4 text-sm text-red-200">
             {error}
@@ -658,7 +860,7 @@ export default function ResearchDashboardPage() {
                           <span>{entry.value}</span>
                         </div>
                         <div className="h-2 rounded bg-slate-800">
-                          <div className="h-2 rounded bg-indigo-500" style={{ width: `${rateValue(entry.value, Math.max(...taskTypeBreakdown.map((item) => item.value), 1))}%` }} />
+                          <div className="h-2 rounded bg-[#BD5579]" style={{ width: `${rateValue(entry.value, Math.max(...taskTypeBreakdown.map((item) => item.value), 1))}%` }} />
                         </div>
                       </div>
                     ))}

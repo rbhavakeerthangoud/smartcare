@@ -7,7 +7,7 @@ export type ApplicationRole =
 export function dashboardPathForRole(role: ApplicationRole) {
   switch (role) {
     case "PATIENT":
-      return "/";
+      return "/patient";
     case "CAREGIVER":
       return "/caregiver";
     case "CLINICIAN":
@@ -30,6 +30,9 @@ export function canAccessRolePath(role: ApplicationRole, pathname: string) {
   }
   if (pathname.startsWith("/care-plans/new") || pathname.startsWith("/tasks/new")) {
     return role === "CLINICIAN" || role === "ADMIN";
+  }
+  if (pathname.startsWith("/patient")) {
+    return role === "PATIENT" || role === "ADMIN";
   }
   return true;
 }

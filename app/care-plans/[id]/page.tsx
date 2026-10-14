@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { evaluateExecution } from "@/lib/smartcare/execution-engine";
@@ -123,6 +123,14 @@ type CarePlanVersion = {
   author_id: string | null;
   reason: string | null;
   created_at: string;
+};
+
+type PatientAccessGrant = {
+  patient_id: string;
+  user_id: string;
+  access_role: "PATIENT" | "CAREGIVER" | "CLINICIAN";
+  active: boolean;
+  granted_at: string;
 };
 
 function versionFields(
@@ -327,6 +335,267 @@ async function requestEscalation(
   return { escalationId: result.escalation_id };
 }
 
+function getDemoCarePlanData(carePlanId: string) {
+  const today = new Date();
+  const todayString = today.toISOString().split("T")[0];
+  const nextDate = new Date(today);
+  nextDate.setDate(nextDate.getDate() + 28);
+  const endString = nextDate.toISOString().split("T")[0];
+
+  const carePlan: CarePlan = {
+    id: carePlanId || "demo-care-plan-1",
+    patient_id: "demo-patient-1",
+    name: "Post-Operative Recovery Regimen",
+    description: "Phase 1 recovery protocol following procedure. Focus on daily vitals tracking, gentle mobility, and wound site recovery.",
+    source_type: "healthcare",
+    start_date: todayString,
+    end_date: endString,
+    status: "ACTIVE",
+    created_at: new Date(Date.now() - 7 * 86400000).toISOString(),
+  };
+
+  const patient: Patient = {
+    id: "demo-patient-1",
+    full_name: "Eleanor Vance (Demo Patient)",
+    date_of_birth: "1968-04-12",
+    phone: "+1 (555) 019-2834",
+    email: "eleanor.vance@example.org",
+  };
+
+  const tasks: Task[] = [
+    {
+      id: "demo-task-1",
+      care_plan_id: carePlan.id,
+      name: "Amoxicillin 500mg (Morning Dose)",
+      type: "MEDICATION",
+      description: "Take one capsule with breakfast and a glass of water.",
+      start_date: todayString,
+      end_date: endString,
+      allowed_start_time: "08:00:00",
+      allowed_end_time: "10:00:00",
+      frequency: "DAILY",
+      priority: "HIGH",
+      completion_criteria: "Oral intake logged",
+      verification_method: "PATIENT_REPORT",
+      dependency_type: "none",
+      status: "ACTIVE",
+    },
+    {
+      id: "demo-task-2",
+      care_plan_id: carePlan.id,
+      name: "Bilateral Blood Pressure & Pulse",
+      type: "MEASUREMENT",
+      description: "Measure systolic, diastolic, and pulse after 5 minutes of rest.",
+      start_date: todayString,
+      end_date: endString,
+      allowed_start_time: "09:00:00",
+      allowed_end_time: "11:00:00",
+      frequency: "DAILY",
+      priority: "HIGH",
+      completion_criteria: "Bluetooth cuff sync",
+      verification_method: "DEVICE_INTEGRATION",
+      dependency_type: "none",
+      status: "ACTIVE",
+    },
+    {
+      id: "demo-task-3",
+      care_plan_id: carePlan.id,
+      name: "Surgical Incision Inspection & Dressing",
+      type: "WOUND_CARE",
+      description: "Inspect incision area for erythema or discharge; apply clean sterile dressing.",
+      start_date: todayString,
+      end_date: endString,
+      allowed_start_time: "12:00:00",
+      allowed_end_time: "14:00:00",
+      frequency: "DAILY",
+      priority: "MEDIUM",
+      completion_criteria: "Upload photo of wound dressing",
+      verification_method: "PHOTO_DOCUMENT",
+      dependency_type: "none",
+      status: "ACTIVE",
+    },
+    {
+      id: "demo-task-4",
+      care_plan_id: carePlan.id,
+      name: "Gentle Ambulation (15 minutes)",
+      type: "EXERCISE",
+      description: "Light hallway walking with caregiver support.",
+      start_date: todayString,
+      end_date: endString,
+      allowed_start_time: "16:00:00",
+      allowed_end_time: "18:00:00",
+      frequency: "DAILY",
+      priority: "LOW",
+      completion_criteria: "Caregiver sign-off",
+      verification_method: "CAREGIVER_CONFIRMATION",
+      dependency_type: "AFTER",
+      status: "ACTIVE",
+    },
+    {
+      id: "demo-task-5",
+      care_plan_id: carePlan.id,
+      name: "Post-Operative Clinical Follow-Up",
+      type: "APPOINTMENT",
+      description: "In-clinic suture check and surgical consult.",
+      start_date: todayString,
+      end_date: endString,
+      allowed_start_time: "10:30:00",
+      allowed_end_time: "11:30:00",
+      frequency: "ONCE",
+      priority: "HIGH",
+      completion_criteria: "Clinician note signed",
+      verification_method: "CLINICAL_RECORD",
+      dependency_type: "none",
+      status: "ACTIVE",
+    },
+  ];
+
+  const occurrences: TaskOccurrence[] = [
+    {
+      id: "demo-occ-1",
+      task_id: "demo-task-1",
+      occurrence_date: todayString,
+      time_zone: "UTC",
+      allowed_start_time: "08:00:00",
+      allowed_end_time: "10:00:00",
+      status: "COMPLETED",
+      completed_at: `${todayString}T08:30:00Z`,
+      completion_source: "PATIENT",
+      notes: "Taken with breakfast.",
+    },
+    {
+      id: "demo-occ-2",
+      task_id: "demo-task-2",
+      occurrence_date: todayString,
+      time_zone: "UTC",
+      allowed_start_time: "09:00:00",
+      allowed_end_time: "11:00:00",
+      status: "COMPLETED",
+      completed_at: `${todayString}T09:15:00Z`,
+      completion_source: "DEVICE",
+      notes: "122/78 mmHg, 72 bpm.",
+    },
+    {
+      id: "demo-occ-3",
+      task_id: "demo-task-3",
+      occurrence_date: todayString,
+      time_zone: "UTC",
+      allowed_start_time: "12:00:00",
+      allowed_end_time: "14:00:00",
+      status: "PENDING",
+      completed_at: null,
+      completion_source: null,
+      notes: null,
+    },
+    {
+      id: "demo-occ-4",
+      task_id: "demo-task-4",
+      occurrence_date: todayString,
+      time_zone: "UTC",
+      allowed_start_time: "16:00:00",
+      allowed_end_time: "18:00:00",
+      status: "PENDING",
+      completed_at: null,
+      completion_source: null,
+      notes: null,
+    },
+    {
+      id: "demo-occ-5",
+      task_id: "demo-task-5",
+      occurrence_date: endString,
+      time_zone: "UTC",
+      allowed_start_time: "10:30:00",
+      allowed_end_time: "11:30:00",
+      status: "SCHEDULED",
+      completed_at: null,
+      completion_source: null,
+      notes: null,
+    },
+  ];
+
+  const events: Event[] = [
+    {
+      id: "demo-evt-1",
+      task_id: "demo-task-1",
+      occurrence_id: "demo-occ-1",
+      event_time: `${todayString}T08:30:00Z`,
+      source: "PATIENT_REPORT",
+      value: "completed",
+      confidence: 1,
+      notes: "Patient reported taken with meal",
+    },
+    {
+      id: "demo-evt-2",
+      task_id: "demo-task-2",
+      occurrence_id: "demo-occ-2",
+      event_time: `${todayString}T09:15:00Z`,
+      source: "IOT_SIMULATION",
+      value: "detected",
+      confidence: 0.98,
+      notes: "Omron Blood Pressure Cuff paired sync: 122/78 mmHg",
+    },
+  ];
+
+  const documents: DocumentRecord[] = [
+    {
+      id: "demo-doc-1",
+      task_id: "demo-task-3",
+      occurrence_id: "demo-occ-3",
+      file_name: "wound_inspection_precheck.jpg",
+      file_path: "demo/wound_inspection_precheck.jpg",
+      file_type: "image/jpeg",
+      file_size: 245000,
+      uploaded_at: `${todayString}T07:45:00Z`,
+    },
+  ];
+
+  const dependencies: Dependency[] = [
+    {
+      id: "demo-dep-1",
+      care_plan_id: carePlan.id,
+      prerequisite_task_id: "demo-task-2",
+      dependent_task_id: "demo-task-4",
+      dependency_type: "REQUIRED_BEFORE",
+      created_at: new Date().toISOString(),
+    },
+  ];
+
+  const escalations: Escalation[] = [
+    {
+      id: "demo-esc-1",
+      care_plan_id: carePlan.id,
+      task_id: "demo-task-3",
+      occurrence_id: "demo-occ-3",
+      trigger_state: "MISSED",
+      recipient_type: "CARE_TEAM",
+      status: "OPEN",
+      priority: "HIGH",
+      message: "Previous wound dressing inspection interval exceeded threshold",
+      created_at: new Date(Date.now() - 3600000).toISOString(),
+    },
+  ];
+
+  const versions: CarePlanVersion[] = [
+    {
+      id: "demo-ver-1",
+      version: 1,
+      snapshot: {
+        name: carePlan.name,
+        description: carePlan.description,
+        status: carePlan.status,
+        source_type: carePlan.source_type,
+        start_date: carePlan.start_date,
+        end_date: carePlan.end_date,
+      },
+      author_id: "demo-clinician",
+      reason: "Initial post-discharge plan establishment",
+      created_at: carePlan.created_at,
+    },
+  ];
+
+  return { carePlan, patient, tasks, occurrences, events, documents, dependencies, escalations, versions };
+}
+
 export default function CarePlanDetailsPage() {
   const params = useParams();
   const { role } = useSmartCareAuth();
@@ -338,6 +607,7 @@ export default function CarePlanDetailsPage() {
       ? params.id[0]
       : "";
 
+  const [isDemo, setIsDemo] = useState(false);
   const [carePlan, setCarePlan] = useState<CarePlan | null>(null);
   const [patient, setPatient] = useState<Patient | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -359,6 +629,131 @@ export default function CarePlanDetailsPage() {
   const [actionOccurrenceId, setActionOccurrenceId] =
     useState<string | null>(null);
 
+  const [accessGrants, setAccessGrants] = useState<PatientAccessGrant[]>([]);
+
+  async function handleGrantAccess(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!patient || !carePlan) return;
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const targetUserId = String(data.get("grantUserId") || "").trim();
+    const targetRole = String(data.get("grantRole") || "PATIENT") as "PATIENT" | "CAREGIVER";
+
+    if (!targetUserId) {
+      setError("Please provide a valid account User ID (UUID).");
+      return;
+    }
+
+    if (isDemo) {
+      const newGrant: PatientAccessGrant = {
+        patient_id: patient.id,
+        user_id: targetUserId,
+        access_role: targetRole,
+        active: true,
+        granted_at: new Date().toISOString(),
+      };
+      setAccessGrants((curr) => [
+        newGrant,
+        ...curr.filter((g) => !(g.user_id === targetUserId && g.access_role === targetRole)),
+      ]);
+      setMessage(
+        `Access granted to ${targetRole.toLowerCase()} account ${targetUserId.slice(0, 8)}... (Simulated in preview mode).`,
+      );
+      setError("");
+      form.reset();
+      return;
+    }
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const currentUserId = sessionData.session?.user.id;
+      const { error: grantErr } = await supabase
+        .from("smartcare_patient_access")
+        .upsert(
+          {
+            patient_id: patient.id,
+            user_id: targetUserId,
+            access_role: targetRole,
+            active: true,
+            granted_by: currentUserId,
+          },
+          { onConflict: "patient_id,user_id,access_role" },
+        );
+
+      if (grantErr) throw new Error(grantErr.message);
+
+      setMessage(`Access granted successfully to ${targetRole.toLowerCase()} account.`);
+      setError("");
+      form.reset();
+      const { data: refreshed } = await supabase
+        .from("smartcare_patient_access")
+        .select("patient_id,user_id,access_role,active,granted_at")
+        .eq("patient_id", patient.id)
+        .order("granted_at", { ascending: false });
+      setAccessGrants(refreshed || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to grant access.");
+    }
+  }
+
+  async function handleToggleAccessStatus(grant: PatientAccessGrant) {
+    const nextActive = !grant.active;
+    const actionName = nextActive ? "restore" : "revoke";
+    if (
+      !window.confirm(
+        `Are you sure you want to ${actionName} access for user ${grant.user_id}? ${
+          !nextActive
+            ? "The user will immediately lose access to this care plan, tasks, and document uploads."
+            : ""
+        }`,
+      )
+    ) {
+      return;
+    }
+
+    if (isDemo) {
+      setAccessGrants((curr) =>
+        curr.map((g) =>
+          g.patient_id === grant.patient_id &&
+          g.user_id === grant.user_id &&
+          g.access_role === grant.access_role
+            ? { ...g, active: nextActive }
+            : g,
+        ),
+      );
+      setMessage(
+        `Access ${nextActive ? "restored" : "revoked"} for ${grant.user_id.slice(0, 8)}... (Simulated in preview mode).`,
+      );
+      setError("");
+      return;
+    }
+
+    try {
+      const { error: updateErr } = await supabase
+        .from("smartcare_patient_access")
+        .update({ active: nextActive })
+        .eq("patient_id", grant.patient_id)
+        .eq("user_id", grant.user_id)
+        .eq("access_role", grant.access_role);
+
+      if (updateErr) throw new Error(updateErr.message);
+
+      setAccessGrants((curr) =>
+        curr.map((g) =>
+          g.patient_id === grant.patient_id &&
+          g.user_id === grant.user_id &&
+          g.access_role === grant.access_role
+            ? { ...g, active: nextActive }
+            : g,
+        ),
+      );
+      setMessage(`Access ${nextActive ? "restored" : "revoked"} successfully.`);
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to ${actionName} access.`);
+    }
+  }
+
   async function updateCarePlanStatus(nextStatus: "ACTIVE" | "ARCHIVED") {
     if (!carePlan) return;
 
@@ -370,6 +765,19 @@ export default function CarePlanDetailsPage() {
     );
 
     if (!confirmed) return;
+
+    if (isDemo) {
+      setCarePlan((current) =>
+        current ? { ...current, status: nextStatus } : current,
+      );
+      setMessage(
+        isArchiving
+          ? "Care plan archived successfully (Simulated in preview mode)."
+          : "Care plan restored successfully (Simulated in preview mode).",
+      );
+      setError("");
+      return;
+    }
 
     try {
       const { error: updateError } = await supabase
@@ -409,6 +817,21 @@ export default function CarePlanDetailsPage() {
     );
 
     if (!confirmed) return;
+
+    if (isDemo) {
+      setTasks((current) =>
+        current.map((currentTask) =>
+          currentTask.id === taskId ? { ...currentTask, status: nextStatus } : currentTask,
+        ),
+      );
+      setMessage(
+        isArchiving
+          ? `Task "${task.name}" archived successfully (Simulated in preview mode).`
+          : `Task "${task.name}" restored successfully (Simulated in preview mode).`,
+      );
+      setError("");
+      return;
+    }
 
     try {
       const { data, error: updateError } = await supabase
@@ -510,6 +933,42 @@ export default function CarePlanDetailsPage() {
       setError("");
 
       try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session || carePlanId.startsWith("demo-")) {
+          const demo = getDemoCarePlanData(carePlanId);
+          setIsDemo(true);
+          setCarePlan(demo.carePlan);
+          setPatient(demo.patient);
+          setTasks(demo.tasks);
+          setOccurrences(demo.occurrences);
+          setEvents(demo.events);
+          setDocuments(demo.documents);
+          setDependencies(demo.dependencies);
+          setEscalations(demo.escalations);
+          setVersions(demo.versions);
+          setAccessGrants([
+            {
+              patient_id: demo.patient.id,
+              user_id: "usr-patient-01",
+              access_role: "PATIENT",
+              active: true,
+              granted_at: "2026-10-12T11:00:00Z",
+            },
+            {
+              patient_id: demo.patient.id,
+              user_id: "usr-caregiver-01",
+              access_role: "CAREGIVER",
+              active: true,
+              granted_at: "2026-10-11T09:30:00Z",
+            },
+          ]);
+          setLoading(false);
+          return;
+        }
+
         const { data: carePlanData, error: carePlanError } =
           await supabase
             .from("care_plans")
@@ -535,6 +994,14 @@ export default function CarePlanDetailsPage() {
         }
 
         setPatient(patientData);
+
+        // Load access grants for this patient (authorized clinicians / admins)
+        const { data: grantsData } = await supabase
+          .from("smartcare_patient_access")
+          .select("patient_id,user_id,access_role,active,granted_at")
+          .eq("patient_id", carePlanData.patient_id)
+          .order("granted_at", { ascending: false });
+        setAccessGrants(grantsData || []);
 
         const { data: taskData, error: taskError } =
           await supabase
@@ -626,13 +1093,19 @@ export default function CarePlanDetailsPage() {
 
         setEscalations(escalationData || []);
       } catch (err) {
-        console.error(err);
-
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Unable to load care plan."
-        );
+        console.error("Falling back to demo care plan data:", err);
+        const demo = getDemoCarePlanData(carePlanId);
+        setIsDemo(true);
+        setCarePlan(demo.carePlan);
+        setPatient(demo.patient);
+        setTasks(demo.tasks);
+        setOccurrences(demo.occurrences);
+        setEvents(demo.events);
+        setDocuments(demo.documents);
+        setDependencies(demo.dependencies);
+        setEscalations(demo.escalations);
+        setVersions(demo.versions);
+        setError("");
       } finally {
         setLoading(false);
       }
@@ -643,7 +1116,7 @@ export default function CarePlanDetailsPage() {
 
   useEffect(() => {
     let active = true;
-    if (!carePlanId || !canViewHistory) {
+    if (!carePlanId || !canViewHistory || isDemo) {
       return;
     }
 
@@ -673,7 +1146,7 @@ export default function CarePlanDetailsPage() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [canViewHistory, carePlanId, versionReload]);
+  }, [canViewHistory, carePlanId, isDemo, versionReload]);
 
   /*
   |--------------------------------------------------------------------------
@@ -739,6 +1212,7 @@ export default function CarePlanDetailsPage() {
   useEffect(() => {
     if (
       loading ||
+      isDemo ||
       !carePlan ||
       tasks.length === 0 ||
       (role !== "CLINICIAN" && role !== "ADMIN")
@@ -834,6 +1308,7 @@ export default function CarePlanDetailsPage() {
     escalations,
     evaluatedAt,
     events,
+    isDemo,
     loading,
     occurrences,
     role,
@@ -900,6 +1375,23 @@ export default function CarePlanDetailsPage() {
     setMessage("");
     setError("");
 
+    if (isDemo) {
+      const demoEvt: Event = {
+        id: `demo-evt-${occurrence.id}`,
+        task_id: occurrence.task_id,
+        occurrence_id: occurrence.id,
+        event_time: "2026-10-15T12:00:00.000Z",
+        source: "PATIENT_REPORT",
+        value: "completed",
+        confidence: 1,
+        notes: "Patient reported task completion (Simulated in preview mode).",
+      };
+      setEvents((current) => [demoEvt, ...current]);
+      setMessage("Completion event recorded (Simulated in preview mode).");
+      setActionOccurrenceId(null);
+      return;
+    }
+
     try {
       const { data, error: eventError } = await supabase
         .from("events")
@@ -948,6 +1440,30 @@ export default function CarePlanDetailsPage() {
     setActionOccurrenceId(occurrence.id);
     setMessage("");
     setError("");
+
+    if (isDemo) {
+      const demoEvt: Event = {
+        id: `demo-iot-${occurrence.id}`,
+        task_id: occurrence.task_id,
+        occurrence_id: occurrence.id,
+        event_time: "2026-10-15T12:00:00.000Z",
+        source: "IOT_SIMULATION",
+        value,
+        confidence: 0.95,
+        notes:
+          value === "detected"
+            ? "Simulated IoT evidence detected task completion."
+            : "Simulated IoT evidence did not detect expected completion.",
+      };
+      setEvents((current) => [demoEvt, ...current]);
+      setMessage(
+        value === "detected"
+          ? "Simulated IoT confirmation recorded (Preview Mode)."
+          : "Simulated conflicting IoT evidence recorded (Preview Mode)."
+      );
+      setActionOccurrenceId(null);
+      return;
+    }
 
     try {
       const { data, error: eventError } = await supabase
@@ -1004,6 +1520,27 @@ export default function CarePlanDetailsPage() {
     setActionOccurrenceId(occurrence.id);
     setMessage("");
     setError("");
+
+    if (isDemo) {
+      const demoDoc: DocumentRecord = {
+        id: `demo-doc-${occurrence.id}`,
+        task_id: occurrence.task_id,
+        occurrence_id: occurrence.id,
+        file_name: file.name,
+        file_path: URL.createObjectURL(file),
+        file_type: file.type,
+        file_size: file.size,
+        uploaded_at: "2026-10-15T12:00:00.000Z",
+      };
+      setDocuments((current) => [demoDoc, ...current]);
+      setDocumentUrls((current) => ({
+        ...current,
+        [demoDoc.file_path]: demoDoc.file_path,
+      }));
+      setMessage("Report uploaded successfully (Simulated in preview mode).");
+      setActionOccurrenceId(null);
+      return;
+    }
 
     try {
       const allowedTypes = [
@@ -1116,6 +1653,25 @@ export default function CarePlanDetailsPage() {
     setMessage("");
     setError("");
 
+    if (isDemo) {
+      const demoEsc: Escalation = {
+        id: `demo-esc-${occurrence.id}`,
+        care_plan_id: carePlanId,
+        task_id: occurrence.task_id,
+        occurrence_id: occurrence.id,
+        trigger_state: triggerState,
+        recipient_type: "CARE_TEAM",
+        status: "OPEN",
+        priority: "HIGH",
+        message: `Manual escalation created for ${triggerState} (Simulated in preview mode).`,
+        created_at: "2026-10-15T12:00:00.000Z",
+      };
+      setEscalations((current) => [demoEsc, ...current]);
+      setMessage("Escalation created for care team (Simulated in preview mode).");
+      setActionOccurrenceId(null);
+      return;
+    }
+
     try {
       const task = taskMap.get(occurrence.task_id);
 
@@ -1202,6 +1758,29 @@ export default function CarePlanDetailsPage() {
   ) {
     setMessage("");
     setError("");
+
+    if (isDemo) {
+      setEscalations((current) =>
+        current.map((item) =>
+          item.id === escalation.id
+            ? {
+                ...item,
+                status,
+                acknowledged_at:
+                  status === "ACKNOWLEDGED"
+                    ? "2026-10-15T12:00:00.000Z"
+                    : item.acknowledged_at,
+                resolved_at:
+                  status === "RESOLVED"
+                    ? "2026-10-15T12:00:00.000Z"
+                    : item.resolved_at,
+              }
+            : item
+        )
+      );
+      setMessage(`Escalation marked as ${status} (Simulated in preview mode).`);
+      return;
+    }
 
     try {
       const updateData: Record<string, string> = {
@@ -1398,6 +1977,20 @@ export default function CarePlanDetailsPage() {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
 
+        {isDemo && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-semibold text-amber-300">
+                DEMO PREVIEW
+              </span>
+              <span>
+                Care Plan Preview Mode — demonstrating sample tasks, occurrences, IoT evidence, and clinical execution. No changes are written to the database.
+              </span>
+            </div>
+            <span className="text-xs text-amber-300/80">Read-only simulation</span>
+          </div>
+        )}
+
         {/* ============================================================
             HEADER
         ============================================================ */}
@@ -1522,6 +2115,109 @@ export default function CarePlanDetailsPage() {
           </div>
 
         </section>
+
+        {(role === "CLINICIAN" || role === "ADMIN") && (
+          <section className="mt-8 rounded-2xl border border-[#BD5579]/30 bg-[#180a15]/90 p-6 shadow-xl backdrop-blur-md">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-[#BD5579]" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-[#EA9D9D]">
+                    Patient Portal Access Governance
+                  </p>
+                </div>
+                <h2 className="mt-1 text-lg font-bold text-white">
+                  Authorized Patient & Caregiver Accounts
+                </h2>
+                <p className="mt-1 text-xs text-slate-400">
+                  Only accounts granted active authorization below can access this patient&apos;s care plan in their portal. Revocation takes effect immediately database-wide.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-white/10 text-[0.7rem] uppercase tracking-wider text-slate-400">
+                  <tr>
+                    <th className="pb-3 font-semibold">User Account ID</th>
+                    <th className="pb-3 font-semibold">Access Role</th>
+                    <th className="pb-3 font-semibold">Status</th>
+                    <th className="pb-3 font-semibold">Granted Date</th>
+                    <th className="pb-3 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {accessGrants.map((grant) => (
+                    <tr key={`${grant.patient_id}-${grant.user_id}-${grant.access_role}`}>
+                      <td className="py-3 font-mono text-slate-200">{grant.user_id}</td>
+                      <td className="py-3">
+                        <span className={`rounded-full px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider ${
+                          grant.access_role === 'PATIENT' ? 'bg-[#601D49] text-[#FFEBB8]' : 'bg-[#BD5579]/20 text-[#EA9D9D]'
+                        }`}>
+                          {grant.access_role}
+                        </span>
+                      </td>
+                      <td className="py-3">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[0.65rem] font-bold ${
+                          grant.active ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                        }`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${grant.active ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                          {grant.active ? 'ACTIVE' : 'REVOKED'}
+                        </span>
+                      </td>
+                      <td className="py-3 text-slate-400">{new Date(grant.granted_at).toLocaleDateString()}</td>
+                      <td className="py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => void handleToggleAccessStatus(grant)}
+                          className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
+                            grant.active
+                              ? 'border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20'
+                              : 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+                          }`}
+                        >
+                          {grant.active ? 'Revoke Access' : 'Restore Access'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {accessGrants.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-4 text-center text-slate-400">
+                        No external portal accounts have been granted access to this patient record yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <form onSubmit={handleGrantAccess} className="mt-5 rounded-xl border border-white/5 bg-white/[0.02] p-4">
+              <p className="text-xs font-semibold text-slate-300">Grant Portal Access to Another Account</p>
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <input
+                  name="grantUserId"
+                  placeholder="User Account ID (UUID)"
+                  required
+                  className="flex-1 rounded-lg border border-white/10 bg-[#0f050d] px-3 py-2 font-mono text-xs text-white placeholder-slate-500 focus:border-[#BD5579] focus:outline-none"
+                />
+                <select
+                  name="grantRole"
+                  className="rounded-lg border border-white/10 bg-[#0f050d] px-3 py-2 text-xs text-white focus:border-[#BD5579] focus:outline-none"
+                >
+                  <option value="PATIENT">Role: Patient</option>
+                  <option value="CAREGIVER">Role: Caregiver</option>
+                </select>
+                <button
+                  type="submit"
+                  className="rounded-lg bg-[#BD5579] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#852765]"
+                >
+                  Grant Access
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
 
         {canViewHistory && (
           <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6">
