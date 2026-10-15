@@ -28,7 +28,7 @@ export function canAccessRolePath(role: ApplicationRole, pathname: string) {
   if (pathname.startsWith("/research")) {
     return role === "CLINICIAN" || role === "ADMIN";
   }
-  if (pathname.startsWith("/care-plans/new") || pathname.startsWith("/tasks/new")) {
+  if (pathname.startsWith("/care-plans") || pathname.startsWith("/tasks")) {
     return role === "CLINICIAN" || role === "ADMIN";
   }
   if (pathname.startsWith("/patient")) {

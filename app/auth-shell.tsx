@@ -49,7 +49,7 @@ function roleNavigation(role: SmartCareRole) {
 function ShellContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { session, role, loading, roleLoading, roleError, signOut } =
+  const { session, role, status, loading, roleLoading, roleError, signOut } =
     useSmartCareAuth();
   const [signOutError, setSignOutError] = useState("");
   const [theme, setTheme] = useState<Theme>("light");
@@ -58,10 +58,16 @@ function ShellContent({ children }: { children: React.ReactNode }) {
   const isPublic = isLogin || isPublicHome;
   const homeForRole = role ? dashboardPathForRole(role) : null;
 
-  // In demo preview mode, disable redirect to /login
-  // useEffect(() => {
-  //   if (!loading && !session && !isPublic) router.replace("/login");
-  // }, [isPublic, loading, router, session]);
+  // Restore mandatory authentication redirect for all protected workspaces
+  useEffect(() => {
+    if (!loading && !session && !isPublic) {
+      const redirectTarget =
+        pathname && pathname !== "/"
+          ? `?redirect=${encodeURIComponent(pathname)}`
+          : "";
+      router.replace(`/login${redirectTarget}`);
+    }
+  }, [isPublic, loading, pathname, router, session]);
 
   useEffect(() => {
     const storedTheme = window.localStorage.getItem("smartcare-theme");
@@ -75,14 +81,92 @@ function ShellContent({ children }: { children: React.ReactNode }) {
 
   if (isPublic) return children;
 
+  // If unauthenticated on a protected workspace, prevent any content flash
+  if (!session) {
+    if (loading) {
+      return (
+        <main className="grid min-h-screen place-items-center text-sm text-slate-600">
+          <div className="text-center">
+            <BrandMark />
+            <p className="mt-4">Verifying authorization…</p>
+          </div>
+        </main>
+      );
+    }
+
+    return (
+      <main className="grid min-h-screen place-items-center px-6">
+        <section className="sc-panel max-w-lg rounded-2xl p-8 text-center">
+          <BrandMark />
+          <h1 className="mt-6 text-xl font-semibold">Authentication required</h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            Please sign in to your authorized SmartCare account to access this workspace.
+          </p>
+          <Link
+            href={`/login?redirect=${encodeURIComponent(pathname)}`}
+            className="mt-6 inline-flex min-h-11 items-center justify-center rounded-lg bg-[#BD5579] px-6 text-sm font-semibold text-white transition hover:bg-[#9e3e5f]"
+          >
+            Sign in to SmartCare
+          </Link>
+        </section>
+      </main>
+    );
+  }
+
   // If authenticated but role is still loading, show workspace preparation
-  if (session && (loading || roleLoading)) {
+  if (session && roleLoading) {
     return (
       <main className="grid min-h-screen place-items-center text-sm text-slate-600">
         <div className="text-center">
           <BrandMark />
           <p className="mt-4">Preparing your secure workspace…</p>
         </div>
+      </main>
+    );
+  }
+
+  // If account privileges are suspended
+  if (session && status === "SUSPENDED") {
+    return (
+      <main className="grid min-h-screen place-items-center px-6">
+        <section className="sc-panel max-w-lg rounded-2xl p-8 text-center">
+          <BrandMark />
+          <h1 className="mt-6 text-xl font-semibold text-rose-800">Account privileges suspended</h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            Your account privileges have been suspended by the hospital administrator.
+            Please contact administration to review your account status.
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleSignOut()}
+            className="mt-6 rounded-lg bg-[#BD5579] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#9e3e5f]"
+          >
+            Sign out
+          </button>
+        </section>
+      </main>
+    );
+  }
+
+  // If account privileges are revoked
+  if (session && status === "REVOKED") {
+    return (
+      <main className="grid min-h-screen place-items-center px-6">
+        <section className="sc-panel max-w-lg rounded-2xl p-8 text-center">
+          <BrandMark />
+          <h1 className="mt-6 text-xl font-semibold text-rose-900">Account privileges revoked</h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            Your account access privileges have been permanently revoked.
+            Contact hospital administration if you believe this is an error.
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleSignOut()}
+            className="mt-6 rounded-lg bg-[#BD5579] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#9e3e5f]"
+          >
+            Sign out
+          </button>
+        </section>
       </main>
     );
   }
@@ -145,27 +229,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const demoNavigation = [
-    { href: "/admin", label: "Hospital Admin" },
-    { href: "/clinical", label: "Doctor Portal" },
-    { href: "/patient", label: "Patient Portal" },
-    { href: "/research", label: "Research Analytics" },
-    { href: "/care-plans/new", label: "Create Care Plan" },
-  ];
-
-  const navigation = session && role
-    ? roleNavigation(role)
-    : (pathname.startsWith("/patient")
-        ? [
-            { href: "/patient", label: "Patient Dashboard" },
-            { href: "/patient#care-plans", label: "My care plan" },
-            { href: "/patient#tasks", label: "Tasks" },
-            { href: "/patient#upcoming-care", label: "Upcoming" },
-            { href: "/patient#documents", label: "Documents" },
-            { href: "/clinical", label: "Switch to Doctor Portal" },
-            { href: "/admin", label: "Switch to Hospital Admin" },
-          ]
-        : demoNavigation);
+  const navigation = role ? roleNavigation(role) : [];
 
   return (
     <div className="min-h-screen">
@@ -175,17 +239,13 @@ function ShellContent({ children }: { children: React.ReactNode }) {
             <BrandMark />
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
-            {session && role ? (
+            {session && role && (
               <>
                 <NotificationCenter userId={session.user.id} role={role} />
                 <span className="hidden rounded-md bg-slate-100 px-2.5 py-1.5 text-[0.68rem] font-semibold tracking-wide text-slate-600 sm:inline">
                   {role}
                 </span>
               </>
-            ) : (
-              <span className="hidden rounded-md border border-[#EA9D9D]/50 bg-[#FFEBB8] px-2.5 py-1 text-[0.68rem] font-bold tracking-wide text-[#4a1538] sm:inline">
-                Demo Preview Mode
-              </span>
             )}
             <button
               type="button"

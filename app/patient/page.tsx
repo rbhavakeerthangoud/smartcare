@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase/client";
 import { evaluateExecution } from "@/lib/smartcare/execution-engine";
 import type { ExecutionState } from "@/lib/smartcare/types";
 import { useSmartCareAuth } from "@/lib/supabase/auth-context";
+import PatientCareAssistant from "@/app/components/patient-care-assistant";
 
 interface CarePlan {
   id: string;
@@ -225,165 +226,15 @@ export default function PatientDashboard() {
   const [reload, setReload] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const [activeTaskFilter, setActiveTaskFilter] = useState<"ALL" | "PENDING" | "COMPLETED">("ALL");
-  const [assistantTab, setAssistantTab] = useState<"GUIDELINES" | "FAQS" | "SAFETY">("GUIDELINES");
-  const [isPreview, setIsPreview] = useState(false);
-
+  const [assistantTab, setAssistantTab] = useState<"AI_CHAT" | "GUIDELINES" | "FAQS" | "SAFETY">("AI_CHAT");
+  
   const refresh = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
       if (!userId) {
-        setIsPreview(true);
-        const todayDate = new Date();
-        const todayString = toLocalDate(todayDate);
-        setPlans([
-          {
-            id: "demo-care-plan-1",
-            name: "Post-Operative Recovery Regimen",
-            description:
-              "Phase 1 recovery protocol following procedure. Focus on daily vitals tracking, gentle mobility, and wound site recovery.",
-            status: "ACTIVE",
-            start_date: todayString,
-            end_date: addDays(todayDate, 28),
-          },
-        ]);
-        setPatientRecords([
-          { id: "demo-patient-1", full_name: "Eleanor Vance (Demo Patient)" },
-        ]);
-        setTasks([
-          {
-            id: "demo-task-1",
-            care_plan_id: "demo-care-plan-1",
-            name: "Amoxicillin 500mg (Morning Dose)",
-            type: "MEDICATION",
-            verification_method: "PATIENT_REPORT",
-          },
-          {
-            id: "demo-task-2",
-            care_plan_id: "demo-care-plan-1",
-            name: "Bilateral Blood Pressure & Pulse",
-            type: "MEASUREMENT",
-            verification_method: "DEVICE_INTEGRATION",
-          },
-          {
-            id: "demo-task-3",
-            care_plan_id: "demo-care-plan-1",
-            name: "Surgical Incision Inspection & Dressing",
-            type: "WOUND_CARE",
-            verification_method: "PHOTO_DOCUMENT",
-          },
-          {
-            id: "demo-task-4",
-            care_plan_id: "demo-care-plan-1",
-            name: "Gentle Ambulation (15 minutes)",
-            type: "EXERCISE",
-            verification_method: "CAREGIVER_CONFIRMATION",
-          },
-          {
-            id: "demo-task-5",
-            care_plan_id: "demo-care-plan-1",
-            name: "Post-Operative Clinical Follow-Up",
-            type: "APPOINTMENT",
-            verification_method: "CLINICAL_RECORD",
-          },
-        ]);
-        setOccurrences([
-          {
-            id: "demo-occ-1",
-            task_id: "demo-task-1",
-            occurrence_date: todayString,
-            time_zone: "UTC",
-            allowed_start_time: "08:00:00",
-            allowed_end_time: "10:00:00",
-            status: "COMPLETED",
-            completed_at: `${todayString}T08:30:00Z`,
-            completion_source: "PATIENT",
-          },
-          {
-            id: "demo-occ-2",
-            task_id: "demo-task-2",
-            occurrence_date: todayString,
-            time_zone: "UTC",
-            allowed_start_time: "09:00:00",
-            allowed_end_time: "11:00:00",
-            status: "COMPLETED",
-            completed_at: `${todayString}T09:15:00Z`,
-            completion_source: "DEVICE",
-          },
-          {
-            id: "demo-occ-3",
-            task_id: "demo-task-3",
-            occurrence_date: todayString,
-            time_zone: "UTC",
-            allowed_start_time: "12:00:00",
-            allowed_end_time: "14:00:00",
-            status: "PENDING",
-            completed_at: null,
-            completion_source: null,
-          },
-          {
-            id: "demo-occ-4",
-            task_id: "demo-task-4",
-            occurrence_date: todayString,
-            time_zone: "UTC",
-            allowed_start_time: "16:00:00",
-            allowed_end_time: "18:00:00",
-            status: "PENDING",
-            completed_at: null,
-            completion_source: null,
-          },
-          {
-            id: "demo-occ-5",
-            task_id: "demo-task-5",
-            occurrence_date: addDays(todayDate, 3),
-            time_zone: "UTC",
-            allowed_start_time: "10:30:00",
-            allowed_end_time: "11:30:00",
-            status: "SCHEDULED",
-            completed_at: null,
-            completion_source: null,
-          },
-        ]);
-        setEvents([
-          {
-            occurrence_id: "demo-occ-1",
-            event_time: `${todayString}T08:30:00Z`,
-            source: "PATIENT",
-            value: "Taken with breakfast",
-            confidence: 1.0,
-            notes: null,
-          },
-          {
-            occurrence_id: "demo-occ-2",
-            event_time: `${todayString}T09:15:00Z`,
-            source: "DEVICE",
-            value: "122/80 mmHg, 72 bpm",
-            confidence: 0.98,
-            notes: "Automated Bluetooth cuff sync",
-          },
-        ]);
-        setDocuments([
-          {
-            occurrence_id: null,
-            uploaded_at: `${todayString}T07:00:00Z`,
-            file_name: "Post-Surgical Discharge Plan & Instructions.pdf",
-          },
-          {
-            occurrence_id: "demo-occ-3",
-            uploaded_at: `${todayString}T08:00:00Z`,
-            file_name: "Wound Dressing Protocol Guide.pdf",
-          },
-        ]);
-        setAccessGrants([
-          {
-            patient_id: "demo-patient-1",
-            user_id: "demo-caregiver",
-            access_role: "CAREGIVER",
-            active: true,
-            granted_at: `${todayString}T06:00:00Z`,
-          },
-        ]);
+        setError("Authentication required: Please sign in to access your authorized patient care plan.");
         setLoading(false);
         return;
       }
@@ -430,7 +281,7 @@ export default function PatientDashboard() {
 
       // Defense in depth: strictly isolate to care plans for patients explicitly granted
       const loadedPlans = rawPlans.filter(
-        (plan) => !plan.patient_id || patientIds.includes(plan.patient_id),
+        (plan) => Boolean(plan.patient_id && patientIds.includes(plan.patient_id)),
       );
 
       let loadedPatientRecords: PatientRecord[] = [];
@@ -662,20 +513,7 @@ export default function PatientDashboard() {
       </div>
 
       <div className="mx-auto max-w-7xl space-y-8">
-        {isPreview && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#EA9D9D]/40 bg-[#601D49]/25 px-4 py-3 text-xs text-[#FFEBB8]">
-            <div className="flex items-center gap-2">
-              <span className="rounded bg-[#FFEBB8] px-2 py-0.5 font-bold text-[#4a1538]">
-                DEMO PREVIEW
-              </span>
-              <span>
-                Displaying synthetic patient sample data for demonstration. Live patient records remain protected behind Supabase authentication.
-              </span>
-            </div>
-            <span className="text-[#EA9D9D]">Read-only preview</span>
-          </div>
-        )}
-
+        
         {/* Top Header & Patient Identity Bar */}
         <header className="flex flex-col gap-6 rounded-2xl border border-white/10 bg-[#180a15]/80 p-6 shadow-xl shadow-black/30 backdrop-blur-md md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
@@ -712,11 +550,11 @@ export default function PatientDashboard() {
           <div className="flex flex-wrap items-center gap-3">
             {primaryPlan && (
               <Link
-                href={`/care-plans/${primaryPlan.id}`}
+                href="#care-plans"
                 className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#BD5579]/40 bg-[#BD5579]/15 px-4 text-xs font-semibold uppercase tracking-wider text-[#EA9D9D] transition hover:bg-[#BD5579]/25"
               >
                 <span>View Full Care Plan</span>
-                <span aria-hidden="true">→</span>
+                <span aria-hidden="true">↓</span>
               </Link>
             )}
             <button
@@ -1027,10 +865,10 @@ export default function PatientDashboard() {
                           </span>
 
                           <Link
-                            href={`/care-plans/${task.care_plan_id}`}
+                            href="#care-plans"
                             className="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-700/80 bg-slate-800 px-3 text-xs font-semibold text-slate-200 transition hover:border-[#BD5579] hover:text-[#FFEBB8]"
                           >
-                            Details →
+                            Plan Info ↓
                           </Link>
                         </div>
                       </li>
@@ -1071,12 +909,9 @@ export default function PatientDashboard() {
                           <TaskTypeIcon type={task.type} />
                         </div>
                         <div className="min-w-0">
-                          <Link
-                            href={`/care-plans/${task.care_plan_id}`}
-                            className="truncate text-sm font-medium text-slate-200 hover:text-[#BD5579] hover:underline"
-                          >
+                          <span className="truncate text-sm font-medium text-slate-200">
                             {task.name}
-                          </Link>
+                          </span>
                           <p className="text-xs text-slate-500">
                             {formatWindow(occurrence)}
                           </p>
@@ -1162,12 +997,9 @@ export default function PatientDashboard() {
                       className="group rounded-xl border border-white/10 bg-[#140712]/70 p-4 transition hover:border-[#BD5579]/40 hover:bg-[#1e0c1b]"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <Link
-                          href={`/care-plans/${plan.id}`}
-                          className="text-base font-bold text-[#FFEBB8] hover:text-[#EA9D9D] hover:underline"
-                        >
+                        <span className="text-base font-bold text-[#FFEBB8]">
                           {plan.name}
-                        </Link>
+                        </span>
                         <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-emerald-300">
                           {plan.status.toLowerCase()}
                         </span>
@@ -1182,12 +1014,12 @@ export default function PatientDashboard() {
                         </p>
                       )}
                       <div className="mt-4 flex items-center justify-end">
-                        <Link
-                          href={`/care-plans/${plan.id}`}
+                        <a
+                          href="#today-tasks"
                           className="text-xs font-semibold text-[#BD5579] hover:text-[#d67a99]"
                         >
-                          Open Detailed Regimen →
-                        </Link>
+                          View Prescribed Tasks ↑
+                        </a>
                       </div>
                     </div>
                   ))}
@@ -1222,6 +1054,17 @@ export default function PatientDashboard() {
 
               {/* Navigator Tabs */}
               <div className="mt-4 flex rounded-lg border border-slate-800 bg-[#0f050d]/80 p-1 text-[0.7rem]">
+                <button
+                  type="button"
+                  onClick={() => setAssistantTab("AI_CHAT")}
+                  className={`flex-1 rounded py-1 font-semibold transition ${
+                    assistantTab === "AI_CHAT"
+                      ? "bg-[#601D49] text-[#FFEBB8] shadow-xs"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  AI Assistant
+                </button>
                 <button
                   type="button"
                   onClick={() => setAssistantTab("GUIDELINES")}
@@ -1259,6 +1102,13 @@ export default function PatientDashboard() {
 
               {/* Tab Contents */}
               <div className="mt-4 text-xs leading-5 text-slate-300">
+                {assistantTab === "AI_CHAT" && (
+                  <PatientCareAssistant
+                    planName={primaryPlan?.name}
+                    tasksCount={tasks.length}
+                  />
+                )}
+
                 {assistantTab === "GUIDELINES" && (
                   <div className="space-y-3">
                     <div className="rounded-xl border border-[#EA9D9D]/20 bg-[#601D49]/20 p-3">
@@ -1288,10 +1138,10 @@ export default function PatientDashboard() {
 
                     {primaryPlan && (
                       <Link
-                        href={`/care-plans/${primaryPlan.id}`}
+                        href="#care-plans"
                         className="mt-2 block text-center font-semibold text-[#BD5579] hover:underline"
                       >
-                        Inspect Care Plan Protocol →
+                        Inspect Care Plan Protocol ↓
                       </Link>
                     )}
                   </div>

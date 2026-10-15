@@ -10,11 +10,61 @@ export default function LoginPage() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [infoMessage, setInfoMessage] = useState("");
+  const [isResetMode, setIsResetMode] = useState(false);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  const [isCoolingDown, setIsCoolingDown] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleResetPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
     setError("");
+    setInfoMessage("");
+    const formData = new FormData(event.currentTarget);
+    const email = String(formData.get("email") || "").trim();
+
+    try {
+      const redirectUrl =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/reset-password`
+          : undefined;
+
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+        email,
+        { redirectTo: redirectUrl },
+      );
+
+      if (resetError) {
+        throw new Error(resetError.message);
+      }
+
+      setInfoMessage(
+        "If an account with that email exists, password reset instructions have been sent.",
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not initiate password reset. Please try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (cooldownUntil && Date.now() < cooldownUntil) {
+      const remainingSeconds = Math.ceil((cooldownUntil - Date.now()) / 1000);
+      setError(`Too many failed attempts. Please wait ${remainingSeconds}s before trying again.`);
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+    setInfoMessage("");
     const formData = new FormData(event.currentTarget);
 
     try {
@@ -23,8 +73,19 @@ export default function LoginPage() {
         password: String(formData.get("password") || ""),
       });
       if (loginError || !data.user) {
+        const nextAttempts = failedAttempts + 1;
+        setFailedAttempts(nextAttempts);
+        if (nextAttempts >= 5) {
+          setCooldownUntil(Date.now() + 30_000);
+          setIsCoolingDown(true);
+          setTimeout(() => setIsCoolingDown(false), 30_000);
+          throw new Error("Too many sign-in attempts. Account access paused for 30 seconds.");
+        }
         throw new Error("Sign in failed. Check your credentials and try again.");
       }
+
+      setFailedAttempts(0);
+      setCooldownUntil(null);
 
       const { error: auditError } = await supabase
         .from("smartcare_audit_log")
@@ -45,7 +106,15 @@ export default function LoginPage() {
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
         const r = params.get("redirect");
-        if (r && r.startsWith("/")) {
+        // Strict internal path validation to prevent open redirects
+        if (
+          r &&
+          r.startsWith("/") &&
+          !r.startsWith("//") &&
+          !r.startsWith("/\\") &&
+          !r.includes(":") &&
+          !r.includes("@")
+        ) {
           redirectUrl = r;
         }
       }
@@ -103,54 +172,119 @@ export default function LoginPage() {
 
         <section className="flex items-center justify-center p-6 sm:p-10 lg:p-12">
           <div className="w-full max-w-sm">
-            <p className="text-sm font-medium text-[#601D49]">Welcome back</p>
+            <p className="text-sm font-medium text-[#601D49]">
+              {isResetMode ? "Password Recovery" : "Welcome back"}
+            </p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
-              Sign in to SmartCare
+              {isResetMode ? "Reset your password" : "Sign in to SmartCare"}
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Use the account provided by your SmartCare administrator.
+              {isResetMode
+                ? "Enter your email to receive secure password recovery instructions."
+                : "Use the account provided by your SmartCare administrator."}
             </p>
-            <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-              <div>
-                <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-800">
-                  Email address
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="username"
-                  required
-                  className="min-h-12 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-950 placeholder:text-slate-400"
-                  placeholder="you@example.com"
-                />
+
+            {infoMessage && (
+              <div role="status" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                {infoMessage}
               </div>
-              <div>
-                <label htmlFor="password" className="mb-2 block text-sm font-medium text-slate-800">
-                  Password
-                </label>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  className="min-h-12 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-950"
-                />
-              </div>
-              {error && (
-                <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
-                  {error}
-                </p>
-              )}
-              <button
-                type="submit"
-                disabled={submitting}
-                className="min-h-12 w-full rounded-lg bg-[#BD5579] px-4 py-3 font-semibold text-white shadow-sm hover:bg-[#9e3e5f] transition disabled:opacity-60"
-              >
-                {submitting ? "Signing in…" : "Sign in"}
-              </button>
-            </form>
+            )}
+
+            {error && (
+              <p role="alert" className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                {error}
+              </p>
+            )}
+
+            {isResetMode ? (
+              <form onSubmit={handleResetPassword} className="mt-6 space-y-5">
+                <div>
+                  <label htmlFor="reset-email" className="mb-2 block text-sm font-medium text-slate-800">
+                    Email address
+                  </label>
+                  <input
+                    id="reset-email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    className="min-h-12 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-950 placeholder:text-slate-400"
+                    placeholder="you@example.com"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="min-h-12 w-full rounded-lg bg-[#BD5579] px-4 py-3 font-semibold text-white shadow-sm hover:bg-[#9e3e5f] transition disabled:opacity-60"
+                >
+                  {submitting ? "Sending instructions…" : "Send reset instructions"}
+                </button>
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsResetMode(false);
+                      setError("");
+                      setInfoMessage("");
+                    }}
+                    className="text-xs font-semibold text-[#601D49] hover:underline"
+                  >
+                    ← Back to sign in
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+                <div>
+                  <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-800">
+                    Email address
+                  </label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="username"
+                    required
+                    className="min-h-12 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-950 placeholder:text-slate-400"
+                    placeholder="you@example.com"
+                  />
+                </div>
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <label htmlFor="password" className="text-sm font-medium text-slate-800">
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsResetMode(true);
+                        setError("");
+                        setInfoMessage("");
+                      }}
+                      className="text-xs font-semibold text-[#601D49] hover:underline"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    className="min-h-12 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-950"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={submitting || isCoolingDown}
+                  className="min-h-12 w-full rounded-lg bg-[#BD5579] px-4 py-3 font-semibold text-white shadow-sm hover:bg-[#9e3e5f] transition disabled:opacity-60"
+                >
+                  {submitting ? "Signing in…" : "Sign in"}
+                </button>
+              </form>
+            )}
+
             <p className="mt-6 border-t border-slate-100 pt-5 text-xs leading-5 text-slate-500">
               Need an account? Contact your SmartCare administrator. Access to care information is limited by your assigned role and patient permissions.
             </p>

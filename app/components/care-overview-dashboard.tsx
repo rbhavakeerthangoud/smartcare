@@ -70,165 +70,6 @@ function stateBadge(state: ExecutionState) {
   return `${base} sc-badge-neutral`;
 }
 
-function getDemoOverviewData(audience: Audience) {
-  const isCaregiver = audience === "CAREGIVER";
-  const todayDate = new Date().toISOString().slice(0, 10);
-
-  const demoPatients: Patient[] = isCaregiver
-    ? [{ id: "demo-patient-1", full_name: "Eleanor Vance (Sample Patient)" }]
-    : [
-        { id: "demo-patient-1", full_name: "Eleanor Vance (Sample Patient)" },
-        { id: "demo-patient-2", full_name: "Marcus Brody (Sample Patient)" },
-      ];
-
-  const demoCarePlans: CarePlan[] = isCaregiver
-    ? [{ id: "demo-plan-1", patient_id: "demo-patient-1", name: "Post-Cardiac Recovery Regimen" }]
-    : [
-        { id: "demo-plan-1", patient_id: "demo-patient-1", name: "Post-Cardiac Recovery Regimen" },
-        { id: "demo-plan-2", patient_id: "demo-patient-2", name: "Orthopedic Mobility Protocol" },
-      ];
-
-  const demoTasks: Task[] = isCaregiver
-    ? [
-        { id: "demo-t-1", care_plan_id: "demo-plan-1", name: "Morning Beta-Blocker (25mg)", verification_method: "PATIENT_REPORT" },
-        { id: "demo-t-2", care_plan_id: "demo-plan-1", name: "Resting Blood Pressure & Pulse", verification_method: "DEVICE_INTEGRATION" },
-        { id: "demo-t-3", care_plan_id: "demo-plan-1", name: "Surgical Incision Inspection", verification_method: "CAREGIVER_CONFIRMATION" },
-      ]
-    : [
-        { id: "demo-t-1", care_plan_id: "demo-plan-1", name: "Morning Beta-Blocker (25mg)", verification_method: "PATIENT_REPORT" },
-        { id: "demo-t-2", care_plan_id: "demo-plan-1", name: "Resting Blood Pressure & Pulse", verification_method: "DEVICE_INTEGRATION" },
-        { id: "demo-t-3", care_plan_id: "demo-plan-1", name: "Surgical Incision Inspection", verification_method: "CAREGIVER_CONFIRMATION" },
-        { id: "demo-t-4", care_plan_id: "demo-plan-2", name: "Weight-bearing Ambulation (15 min)", verification_method: "CAREGIVER_CONFIRMATION" },
-        { id: "demo-t-5", care_plan_id: "demo-plan-2", name: "Post-Op Orthopedic Clinic Visit", verification_method: "CLINICAL_RECORD" },
-      ];
-
-  const demoOccurrences: Occurrence[] = [
-    {
-      id: "demo-occ-1",
-      task_id: "demo-t-1",
-      occurrence_date: todayDate,
-      time_zone: "UTC",
-      allowed_start_time: "08:00:00",
-      allowed_end_time: "10:00:00",
-      status: "COMPLETED",
-      completed_at: `${todayDate}T08:25:00Z`,
-      completion_source: "PATIENT",
-    },
-    {
-      id: "demo-occ-2",
-      task_id: "demo-t-2",
-      occurrence_date: todayDate,
-      time_zone: "UTC",
-      allowed_start_time: "09:00:00",
-      allowed_end_time: "11:00:00",
-      status: "COMPLETED",
-      completed_at: `${todayDate}T09:10:00Z`,
-      completion_source: "DEVICE",
-    },
-    {
-      id: "demo-occ-3",
-      task_id: "demo-t-3",
-      occurrence_date: todayDate,
-      time_zone: "UTC",
-      allowed_start_time: "12:00:00",
-      allowed_end_time: "14:00:00",
-      status: "PENDING",
-      completed_at: null,
-      completion_source: null,
-    },
-    ...(isCaregiver
-      ? []
-      : [
-          {
-            id: "demo-occ-4",
-            task_id: "demo-t-4",
-            occurrence_date: todayDate,
-            time_zone: "UTC",
-            allowed_start_time: "14:00:00",
-            allowed_end_time: "16:00:00",
-            status: "PENDING",
-            completed_at: null,
-            completion_source: null,
-          },
-          {
-            id: "demo-occ-5",
-            task_id: "demo-t-5",
-            occurrence_date: todayDate,
-            time_zone: "UTC",
-            allowed_start_time: "16:00:00",
-            allowed_end_time: "17:00:00",
-            status: "PENDING",
-            completed_at: null,
-            completion_source: null,
-          },
-        ]),
-  ];
-
-  const demoEvents: EventRecord[] = [
-    { occurrence_id: "demo-occ-1", event_time: `${todayDate}T08:25:00Z`, source: "PATIENT", value: "Taken with water", confidence: 1 },
-    { occurrence_id: "demo-occ-2", event_time: `${todayDate}T09:10:00Z`, source: "DEVICE", value: "118/76 mmHg", confidence: 0.98 },
-  ];
-
-  const demoDocuments: DocumentRecord[] = [
-    { occurrence_id: null, uploaded_at: `${todayDate}T07:00:00Z`, file_name: "Discharge_Summary_Signed.pdf" },
-  ];
-
-  const demoEscalations: Escalation[] = [
-    {
-      id: "demo-esc-1",
-      care_plan_id: "demo-plan-1",
-      task_id: "demo-t-3",
-      occurrence_id: "demo-occ-3",
-      trigger_state: "MISSED",
-      priority: "HIGH",
-      recipient_type: isCaregiver ? "CAREGIVER" : "CLINICIAN",
-      status: "OPEN",
-      message: "Scheduled wound inspection window expired without verification evidence.",
-      created_at: `${todayDate}T10:05:00Z`,
-      acknowledged_at: null,
-      resolved_at: null,
-    },
-    ...(isCaregiver
-      ? []
-      : [
-          {
-            id: "demo-esc-2",
-            care_plan_id: "demo-plan-2",
-            task_id: "demo-t-4",
-            occurrence_id: "demo-occ-4",
-            trigger_state: "CONFLICTING",
-            priority: "MEDIUM",
-            recipient_type: "CLINICIAN",
-            status: "ACKNOWLEDGED",
-            message: "Mobility task delayed due to elevated systolic blood pressure reading.",
-            created_at: `${todayDate}T09:30:00Z`,
-            acknowledged_at: `${todayDate}T09:45:00Z`,
-            resolved_at: null,
-          },
-        ]),
-  ];
-
-  const states = new Map<string, ExecutionState>();
-  states.set("demo-occ-1", "ON_TIME");
-  states.set("demo-occ-2", "ON_TIME");
-  states.set("demo-occ-3", "BEFORE_WINDOW");
-  if (!isCaregiver) {
-    states.set("demo-occ-4", "PENDING");
-    states.set("demo-occ-5", "PENDING");
-  }
-
-  return {
-    carePlans: demoCarePlans,
-    patients: demoPatients,
-    tasks: demoTasks,
-    occurrences: demoOccurrences,
-    events: demoEvents,
-    documents: demoDocuments,
-    escalations: demoEscalations,
-    executionStates: states,
-    blockedCount: isCaregiver ? 0 : 1,
-  };
-}
 
 export default function CareOverviewDashboard({
   audience,
@@ -252,7 +93,6 @@ export default function CareOverviewDashboard({
   const [error, setError] = useState("");
   const [actionId, setActionId] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -262,18 +102,8 @@ export default function CareOverviewDashboard({
       setError("");
       try {
         if (!userId) {
-          setIsDemo(true);
-          const demo = getDemoOverviewData(audience);
-          if (!active) return;
-          setCarePlans(demo.carePlans);
-          setPatients(demo.patients);
-          setTasks(demo.tasks);
-          setOccurrences(demo.occurrences);
-          setEvents(demo.events);
-          setDocuments(demo.documents);
-          setEscalations(demo.escalations);
-          setExecutionStates(demo.executionStates);
-          setBlockedCount(demo.blockedCount);
+          setError("Authentication required: Please sign in to view your authorized records.");
+          setLoading(false);
           return;
         }
 
@@ -659,25 +489,6 @@ export default function CareOverviewDashboard({
   return (
     <main className="min-h-screen px-4 py-8 sm:px-6" style={{ background: "var(--sc-background)", color: "var(--sc-text)" }}>
       <div className="mx-auto max-w-7xl">
-        {isDemo && (
-          <div
-            className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl p-4 text-xs"
-            style={{
-              border: "1px solid var(--sc-border)",
-              background: "var(--sc-surface-soft)",
-              color: "var(--sc-text)",
-            }}
-          >
-            <div className="flex items-center gap-2">
-              <span className="sc-badge sc-badge-primary">DEMO PREVIEW</span>
-              <span>
-                Viewing {audience === "CAREGIVER" ? "caregiver" : "clinical"} workspace in preview mode with synthetic demonstration data. Real records remain secured.
-              </span>
-            </div>
-            <span style={{ color: "var(--sc-muted)" }}>Simulated actions only</span>
-          </div>
-        )}
-
         <div className="mb-8 sc-animate-fade-up">
           <p className="sc-section-label">
             {audience === "CAREGIVER" ? "Caregiver" : "Clinical"} · SmartCare

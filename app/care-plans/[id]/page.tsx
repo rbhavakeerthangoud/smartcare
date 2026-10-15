@@ -335,279 +335,17 @@ async function requestEscalation(
   return { escalationId: result.escalation_id };
 }
 
-function getDemoCarePlanData(carePlanId: string) {
-  const today = new Date();
-  const todayString = today.toISOString().split("T")[0];
-  const nextDate = new Date(today);
-  nextDate.setDate(nextDate.getDate() + 28);
-  const endString = nextDate.toISOString().split("T")[0];
-
-  const carePlan: CarePlan = {
-    id: carePlanId || "demo-care-plan-1",
-    patient_id: "demo-patient-1",
-    name: "Post-Operative Recovery Regimen",
-    description: "Phase 1 recovery protocol following procedure. Focus on daily vitals tracking, gentle mobility, and wound site recovery.",
-    source_type: "healthcare",
-    start_date: todayString,
-    end_date: endString,
-    status: "ACTIVE",
-    created_at: new Date(Date.now() - 7 * 86400000).toISOString(),
-  };
-
-  const patient: Patient = {
-    id: "demo-patient-1",
-    full_name: "Eleanor Vance (Demo Patient)",
-    date_of_birth: "1968-04-12",
-    phone: "+1 (555) 019-2834",
-    email: "eleanor.vance@example.org",
-  };
-
-  const tasks: Task[] = [
-    {
-      id: "demo-task-1",
-      care_plan_id: carePlan.id,
-      name: "Amoxicillin 500mg (Morning Dose)",
-      type: "MEDICATION",
-      description: "Take one capsule with breakfast and a glass of water.",
-      start_date: todayString,
-      end_date: endString,
-      allowed_start_time: "08:00:00",
-      allowed_end_time: "10:00:00",
-      frequency: "DAILY",
-      priority: "HIGH",
-      completion_criteria: "Oral intake logged",
-      verification_method: "PATIENT_REPORT",
-      dependency_type: "none",
-      status: "ACTIVE",
-    },
-    {
-      id: "demo-task-2",
-      care_plan_id: carePlan.id,
-      name: "Bilateral Blood Pressure & Pulse",
-      type: "MEASUREMENT",
-      description: "Measure systolic, diastolic, and pulse after 5 minutes of rest.",
-      start_date: todayString,
-      end_date: endString,
-      allowed_start_time: "09:00:00",
-      allowed_end_time: "11:00:00",
-      frequency: "DAILY",
-      priority: "HIGH",
-      completion_criteria: "Bluetooth cuff sync",
-      verification_method: "DEVICE_INTEGRATION",
-      dependency_type: "none",
-      status: "ACTIVE",
-    },
-    {
-      id: "demo-task-3",
-      care_plan_id: carePlan.id,
-      name: "Surgical Incision Inspection & Dressing",
-      type: "WOUND_CARE",
-      description: "Inspect incision area for erythema or discharge; apply clean sterile dressing.",
-      start_date: todayString,
-      end_date: endString,
-      allowed_start_time: "12:00:00",
-      allowed_end_time: "14:00:00",
-      frequency: "DAILY",
-      priority: "MEDIUM",
-      completion_criteria: "Upload photo of wound dressing",
-      verification_method: "PHOTO_DOCUMENT",
-      dependency_type: "none",
-      status: "ACTIVE",
-    },
-    {
-      id: "demo-task-4",
-      care_plan_id: carePlan.id,
-      name: "Gentle Ambulation (15 minutes)",
-      type: "EXERCISE",
-      description: "Light hallway walking with caregiver support.",
-      start_date: todayString,
-      end_date: endString,
-      allowed_start_time: "16:00:00",
-      allowed_end_time: "18:00:00",
-      frequency: "DAILY",
-      priority: "LOW",
-      completion_criteria: "Caregiver sign-off",
-      verification_method: "CAREGIVER_CONFIRMATION",
-      dependency_type: "AFTER",
-      status: "ACTIVE",
-    },
-    {
-      id: "demo-task-5",
-      care_plan_id: carePlan.id,
-      name: "Post-Operative Clinical Follow-Up",
-      type: "APPOINTMENT",
-      description: "In-clinic suture check and surgical consult.",
-      start_date: todayString,
-      end_date: endString,
-      allowed_start_time: "10:30:00",
-      allowed_end_time: "11:30:00",
-      frequency: "ONCE",
-      priority: "HIGH",
-      completion_criteria: "Clinician note signed",
-      verification_method: "CLINICAL_RECORD",
-      dependency_type: "none",
-      status: "ACTIVE",
-    },
-  ];
-
-  const occurrences: TaskOccurrence[] = [
-    {
-      id: "demo-occ-1",
-      task_id: "demo-task-1",
-      occurrence_date: todayString,
-      time_zone: "UTC",
-      allowed_start_time: "08:00:00",
-      allowed_end_time: "10:00:00",
-      status: "COMPLETED",
-      completed_at: `${todayString}T08:30:00Z`,
-      completion_source: "PATIENT",
-      notes: "Taken with breakfast.",
-    },
-    {
-      id: "demo-occ-2",
-      task_id: "demo-task-2",
-      occurrence_date: todayString,
-      time_zone: "UTC",
-      allowed_start_time: "09:00:00",
-      allowed_end_time: "11:00:00",
-      status: "COMPLETED",
-      completed_at: `${todayString}T09:15:00Z`,
-      completion_source: "DEVICE",
-      notes: "122/78 mmHg, 72 bpm.",
-    },
-    {
-      id: "demo-occ-3",
-      task_id: "demo-task-3",
-      occurrence_date: todayString,
-      time_zone: "UTC",
-      allowed_start_time: "12:00:00",
-      allowed_end_time: "14:00:00",
-      status: "PENDING",
-      completed_at: null,
-      completion_source: null,
-      notes: null,
-    },
-    {
-      id: "demo-occ-4",
-      task_id: "demo-task-4",
-      occurrence_date: todayString,
-      time_zone: "UTC",
-      allowed_start_time: "16:00:00",
-      allowed_end_time: "18:00:00",
-      status: "PENDING",
-      completed_at: null,
-      completion_source: null,
-      notes: null,
-    },
-    {
-      id: "demo-occ-5",
-      task_id: "demo-task-5",
-      occurrence_date: endString,
-      time_zone: "UTC",
-      allowed_start_time: "10:30:00",
-      allowed_end_time: "11:30:00",
-      status: "SCHEDULED",
-      completed_at: null,
-      completion_source: null,
-      notes: null,
-    },
-  ];
-
-  const events: Event[] = [
-    {
-      id: "demo-evt-1",
-      task_id: "demo-task-1",
-      occurrence_id: "demo-occ-1",
-      event_time: `${todayString}T08:30:00Z`,
-      source: "PATIENT_REPORT",
-      value: "completed",
-      confidence: 1,
-      notes: "Patient reported taken with meal",
-    },
-    {
-      id: "demo-evt-2",
-      task_id: "demo-task-2",
-      occurrence_id: "demo-occ-2",
-      event_time: `${todayString}T09:15:00Z`,
-      source: "IOT_SIMULATION",
-      value: "detected",
-      confidence: 0.98,
-      notes: "Omron Blood Pressure Cuff paired sync: 122/78 mmHg",
-    },
-  ];
-
-  const documents: DocumentRecord[] = [
-    {
-      id: "demo-doc-1",
-      task_id: "demo-task-3",
-      occurrence_id: "demo-occ-3",
-      file_name: "wound_inspection_precheck.jpg",
-      file_path: "demo/wound_inspection_precheck.jpg",
-      file_type: "image/jpeg",
-      file_size: 245000,
-      uploaded_at: `${todayString}T07:45:00Z`,
-    },
-  ];
-
-  const dependencies: Dependency[] = [
-    {
-      id: "demo-dep-1",
-      care_plan_id: carePlan.id,
-      prerequisite_task_id: "demo-task-2",
-      dependent_task_id: "demo-task-4",
-      dependency_type: "REQUIRED_BEFORE",
-      created_at: new Date().toISOString(),
-    },
-  ];
-
-  const escalations: Escalation[] = [
-    {
-      id: "demo-esc-1",
-      care_plan_id: carePlan.id,
-      task_id: "demo-task-3",
-      occurrence_id: "demo-occ-3",
-      trigger_state: "MISSED",
-      recipient_type: "CARE_TEAM",
-      status: "OPEN",
-      priority: "HIGH",
-      message: "Previous wound dressing inspection interval exceeded threshold",
-      created_at: new Date(Date.now() - 3600000).toISOString(),
-    },
-  ];
-
-  const versions: CarePlanVersion[] = [
-    {
-      id: "demo-ver-1",
-      version: 1,
-      snapshot: {
-        name: carePlan.name,
-        description: carePlan.description,
-        status: carePlan.status,
-        source_type: carePlan.source_type,
-        start_date: carePlan.start_date,
-        end_date: carePlan.end_date,
-      },
-      author_id: "demo-clinician",
-      reason: "Initial post-discharge plan establishment",
-      created_at: carePlan.created_at,
-    },
-  ];
-
-  return { carePlan, patient, tasks, occurrences, events, documents, dependencies, escalations, versions };
-}
 
 export default function CarePlanDetailsPage() {
   const params = useParams();
-  const { role } = useSmartCareAuth();
+  const { role, loading: authLoading } = useSmartCareAuth();
 
   const carePlanId =
     typeof params.id === "string"
       ? params.id
       : Array.isArray(params.id)
       ? params.id[0]
-      : "";
-
-  const [isDemo, setIsDemo] = useState(false);
+      : "";
   const [carePlan, setCarePlan] = useState<CarePlan | null>(null);
   const [patient, setPatient] = useState<Patient | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -642,27 +380,7 @@ export default function CarePlanDetailsPage() {
     if (!targetUserId) {
       setError("Please provide a valid account User ID (UUID).");
       return;
-    }
-
-    if (isDemo) {
-      const newGrant: PatientAccessGrant = {
-        patient_id: patient.id,
-        user_id: targetUserId,
-        access_role: targetRole,
-        active: true,
-        granted_at: new Date().toISOString(),
-      };
-      setAccessGrants((curr) => [
-        newGrant,
-        ...curr.filter((g) => !(g.user_id === targetUserId && g.access_role === targetRole)),
-      ]);
-      setMessage(
-        `Access granted to ${targetRole.toLowerCase()} account ${targetUserId.slice(0, 8)}... (Simulated in preview mode).`,
-      );
-      setError("");
-      form.reset();
-      return;
-    }
+    }
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -709,24 +427,7 @@ export default function CarePlanDetailsPage() {
       )
     ) {
       return;
-    }
-
-    if (isDemo) {
-      setAccessGrants((curr) =>
-        curr.map((g) =>
-          g.patient_id === grant.patient_id &&
-          g.user_id === grant.user_id &&
-          g.access_role === grant.access_role
-            ? { ...g, active: nextActive }
-            : g,
-        ),
-      );
-      setMessage(
-        `Access ${nextActive ? "restored" : "revoked"} for ${grant.user_id.slice(0, 8)}... (Simulated in preview mode).`,
-      );
-      setError("");
-      return;
-    }
+    }
 
     try {
       const { error: updateErr } = await supabase
@@ -764,20 +465,7 @@ export default function CarePlanDetailsPage() {
         : "Restore this care plan so it can be used in active workflows again?",
     );
 
-    if (!confirmed) return;
-
-    if (isDemo) {
-      setCarePlan((current) =>
-        current ? { ...current, status: nextStatus } : current,
-      );
-      setMessage(
-        isArchiving
-          ? "Care plan archived successfully (Simulated in preview mode)."
-          : "Care plan restored successfully (Simulated in preview mode).",
-      );
-      setError("");
-      return;
-    }
+    if (!confirmed) return;
 
     try {
       const { error: updateError } = await supabase
@@ -816,22 +504,7 @@ export default function CarePlanDetailsPage() {
         : "Restore this task so it can be used again in active care workflows?",
     );
 
-    if (!confirmed) return;
-
-    if (isDemo) {
-      setTasks((current) =>
-        current.map((currentTask) =>
-          currentTask.id === taskId ? { ...currentTask, status: nextStatus } : currentTask,
-        ),
-      );
-      setMessage(
-        isArchiving
-          ? `Task "${task.name}" archived successfully (Simulated in preview mode).`
-          : `Task "${task.name}" restored successfully (Simulated in preview mode).`,
-      );
-      setError("");
-      return;
-    }
+    if (!confirmed) return;
 
     try {
       const { data, error: updateError } = await supabase
@@ -933,38 +606,18 @@ export default function CarePlanDetailsPage() {
       setError("");
 
       try {
+        if (role && role !== "CLINICIAN" && role !== "ADMIN") {
+          setError("This care-plan management workspace is restricted to authorized clinicians.");
+          setLoading(false);
+          return;
+        }
+
         const {
           data: { session },
         } = await supabase.auth.getSession();
 
-        if (!session || carePlanId.startsWith("demo-")) {
-          const demo = getDemoCarePlanData(carePlanId);
-          setIsDemo(true);
-          setCarePlan(demo.carePlan);
-          setPatient(demo.patient);
-          setTasks(demo.tasks);
-          setOccurrences(demo.occurrences);
-          setEvents(demo.events);
-          setDocuments(demo.documents);
-          setDependencies(demo.dependencies);
-          setEscalations(demo.escalations);
-          setVersions(demo.versions);
-          setAccessGrants([
-            {
-              patient_id: demo.patient.id,
-              user_id: "usr-patient-01",
-              access_role: "PATIENT",
-              active: true,
-              granted_at: "2026-10-12T11:00:00Z",
-            },
-            {
-              patient_id: demo.patient.id,
-              user_id: "usr-caregiver-01",
-              access_role: "CAREGIVER",
-              active: true,
-              granted_at: "2026-10-11T09:30:00Z",
-            },
-          ]);
+        if (!session) {
+          setError("Authentication session required to access care plan management.");
           setLoading(false);
           return;
         }
@@ -1093,30 +746,19 @@ export default function CarePlanDetailsPage() {
 
         setEscalations(escalationData || []);
       } catch (err) {
-        console.error("Falling back to demo care plan data:", err);
-        const demo = getDemoCarePlanData(carePlanId);
-        setIsDemo(true);
-        setCarePlan(demo.carePlan);
-        setPatient(demo.patient);
-        setTasks(demo.tasks);
-        setOccurrences(demo.occurrences);
-        setEvents(demo.events);
-        setDocuments(demo.documents);
-        setDependencies(demo.dependencies);
-        setEscalations(demo.escalations);
-        setVersions(demo.versions);
-        setError("");
+        console.error("Failed to load care plan data:", err);
+        setError(err instanceof Error ? err.message : "Failed to load care plan data.");
       } finally {
         setLoading(false);
       }
     }
 
     loadCarePlan();
-  }, [carePlanId]);
+  }, [carePlanId, role]);
 
   useEffect(() => {
     let active = true;
-    if (!carePlanId || !canViewHistory || isDemo) {
+    if (!carePlanId || !canViewHistory) {
       return;
     }
 
@@ -1146,7 +788,7 @@ export default function CarePlanDetailsPage() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [canViewHistory, carePlanId, isDemo, versionReload]);
+  }, [canViewHistory, carePlanId, versionReload]);
 
   /*
   |--------------------------------------------------------------------------
@@ -1212,7 +854,6 @@ export default function CarePlanDetailsPage() {
   useEffect(() => {
     if (
       loading ||
-      isDemo ||
       !carePlan ||
       tasks.length === 0 ||
       (role !== "CLINICIAN" && role !== "ADMIN")
@@ -1307,8 +948,7 @@ export default function CarePlanDetailsPage() {
     documents,
     escalations,
     evaluatedAt,
-    events,
-    isDemo,
+    events,
     loading,
     occurrences,
     role,
@@ -1373,24 +1013,7 @@ export default function CarePlanDetailsPage() {
   ) {
     setActionOccurrenceId(occurrence.id);
     setMessage("");
-    setError("");
-
-    if (isDemo) {
-      const demoEvt: Event = {
-        id: `demo-evt-${occurrence.id}`,
-        task_id: occurrence.task_id,
-        occurrence_id: occurrence.id,
-        event_time: "2026-10-15T12:00:00.000Z",
-        source: "PATIENT_REPORT",
-        value: "completed",
-        confidence: 1,
-        notes: "Patient reported task completion (Simulated in preview mode).",
-      };
-      setEvents((current) => [demoEvt, ...current]);
-      setMessage("Completion event recorded (Simulated in preview mode).");
-      setActionOccurrenceId(null);
-      return;
-    }
+    setError("");
 
     try {
       const { data, error: eventError } = await supabase
@@ -1439,31 +1062,7 @@ export default function CarePlanDetailsPage() {
   ) {
     setActionOccurrenceId(occurrence.id);
     setMessage("");
-    setError("");
-
-    if (isDemo) {
-      const demoEvt: Event = {
-        id: `demo-iot-${occurrence.id}`,
-        task_id: occurrence.task_id,
-        occurrence_id: occurrence.id,
-        event_time: "2026-10-15T12:00:00.000Z",
-        source: "IOT_SIMULATION",
-        value,
-        confidence: 0.95,
-        notes:
-          value === "detected"
-            ? "Simulated IoT evidence detected task completion."
-            : "Simulated IoT evidence did not detect expected completion.",
-      };
-      setEvents((current) => [demoEvt, ...current]);
-      setMessage(
-        value === "detected"
-          ? "Simulated IoT confirmation recorded (Preview Mode)."
-          : "Simulated conflicting IoT evidence recorded (Preview Mode)."
-      );
-      setActionOccurrenceId(null);
-      return;
-    }
+    setError("");
 
     try {
       const { data, error: eventError } = await supabase
@@ -1519,28 +1118,7 @@ export default function CarePlanDetailsPage() {
   ) {
     setActionOccurrenceId(occurrence.id);
     setMessage("");
-    setError("");
-
-    if (isDemo) {
-      const demoDoc: DocumentRecord = {
-        id: `demo-doc-${occurrence.id}`,
-        task_id: occurrence.task_id,
-        occurrence_id: occurrence.id,
-        file_name: file.name,
-        file_path: URL.createObjectURL(file),
-        file_type: file.type,
-        file_size: file.size,
-        uploaded_at: "2026-10-15T12:00:00.000Z",
-      };
-      setDocuments((current) => [demoDoc, ...current]);
-      setDocumentUrls((current) => ({
-        ...current,
-        [demoDoc.file_path]: demoDoc.file_path,
-      }));
-      setMessage("Report uploaded successfully (Simulated in preview mode).");
-      setActionOccurrenceId(null);
-      return;
-    }
+    setError("");
 
     try {
       const allowedTypes = [
@@ -1651,26 +1229,7 @@ export default function CarePlanDetailsPage() {
   ) {
     setActionOccurrenceId(occurrence.id);
     setMessage("");
-    setError("");
-
-    if (isDemo) {
-      const demoEsc: Escalation = {
-        id: `demo-esc-${occurrence.id}`,
-        care_plan_id: carePlanId,
-        task_id: occurrence.task_id,
-        occurrence_id: occurrence.id,
-        trigger_state: triggerState,
-        recipient_type: "CARE_TEAM",
-        status: "OPEN",
-        priority: "HIGH",
-        message: `Manual escalation created for ${triggerState} (Simulated in preview mode).`,
-        created_at: "2026-10-15T12:00:00.000Z",
-      };
-      setEscalations((current) => [demoEsc, ...current]);
-      setMessage("Escalation created for care team (Simulated in preview mode).");
-      setActionOccurrenceId(null);
-      return;
-    }
+    setError("");
 
     try {
       const task = taskMap.get(occurrence.task_id);
@@ -1757,30 +1316,7 @@ export default function CarePlanDetailsPage() {
     status: "ACKNOWLEDGED" | "RESOLVED"
   ) {
     setMessage("");
-    setError("");
-
-    if (isDemo) {
-      setEscalations((current) =>
-        current.map((item) =>
-          item.id === escalation.id
-            ? {
-                ...item,
-                status,
-                acknowledged_at:
-                  status === "ACKNOWLEDGED"
-                    ? "2026-10-15T12:00:00.000Z"
-                    : item.acknowledged_at,
-                resolved_at:
-                  status === "RESOLVED"
-                    ? "2026-10-15T12:00:00.000Z"
-                    : item.resolved_at,
-              }
-            : item
-        )
-      );
-      setMessage(`Escalation marked as ${status} (Simulated in preview mode).`);
-      return;
-    }
+    setError("");
 
     try {
       const updateData: Record<string, string> = {
@@ -1926,6 +1462,32 @@ export default function CarePlanDetailsPage() {
 
   /*
   |--------------------------------------------------------------------------
+  | Role Guard
+  |--------------------------------------------------------------------------
+  */
+
+  if (!authLoading && role && role !== "CLINICIAN" && role !== "ADMIN") {
+    return (
+      <main className="grid min-h-screen place-items-center px-6 bg-black text-white">
+        <section className="max-w-lg rounded-2xl border border-white/10 bg-[#180a15] p-8 text-center shadow-2xl">
+          <h1 className="text-xl font-bold text-white">Clinician Workspace Restricted</h1>
+          <p className="mt-3 text-sm text-slate-300">
+            This care-plan management workspace is reserved for authorized healthcare clinicians and administrators.
+            Patients access their care instructions, daily schedules, and progress tracking through the Patient Portal.
+          </p>
+          <Link
+            href={role === "PATIENT" ? "/patient" : role === "CAREGIVER" ? "/caregiver" : "/"}
+            className="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl bg-[#BD5579] px-5 text-sm font-semibold text-white transition hover:bg-[#852765]"
+          >
+            Return to your dashboard
+          </Link>
+        </section>
+      </main>
+    );
+  }
+
+  /*
+  |--------------------------------------------------------------------------
   | Loading
   |--------------------------------------------------------------------------
   */
@@ -1975,21 +1537,7 @@ export default function CarePlanDetailsPage() {
   return (
     <main className="min-h-screen bg-black text-white">
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-
-        {isDemo && (
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-semibold text-amber-300">
-                DEMO PREVIEW
-              </span>
-              <span>
-                Care Plan Preview Mode — demonstrating sample tasks, occurrences, IoT evidence, and clinical execution. No changes are written to the database.
-              </span>
-            </div>
-            <span className="text-xs text-amber-300/80">Read-only simulation</span>
-          </div>
-        )}
+      <div className="max-w-7xl mx-auto px-6 py-8">
 
         {/* ============================================================
             HEADER

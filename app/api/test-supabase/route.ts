@@ -25,7 +25,7 @@ export async function GET() {
     return NextResponse.json({
       connected: true,
       message: "SmartCare is connected to Supabase.",
-      data,
+      has_records: Boolean(data && data.length > 0),
     });
   } catch (error) {
     console.error("Supabase connectivity check failed.", error);

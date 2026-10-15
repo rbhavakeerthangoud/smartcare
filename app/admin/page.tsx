@@ -80,52 +80,6 @@ const accessRoles: PatientAccess["access_role"][] = [
   "CAREGIVER",
 ];
 
-const INITIAL_DEMO_DOCTORS: DoctorRecord[] = [
-  {
-    user_id: "usr-doc-01",
-    name: "Dr. Sarah Chen, MD",
-    department: "Cardiology & Post-Operative Care",
-    specialty: "Interventional Cardiology",
-    hospital: "MetroHealth Heart & Vascular Pavilion",
-    license_number: "MD-9402849-NY",
-    status: "AUTHORIZED",
-    assigned_patients_count: 3,
-    authorized_at: "2026-09-15T09:00:00Z",
-  },
-  {
-    user_id: "usr-doc-02",
-    name: "Dr. Michael Patel, MD",
-    department: "Orthopedic Surgery & Rehabilitation",
-    specialty: "Joint Reconstruction",
-    hospital: "MetroHealth Surgical Center",
-    license_number: "MD-7294820-NY",
-    status: "AUTHORIZED",
-    assigned_patients_count: 2,
-    authorized_at: "2026-09-20T10:30:00Z",
-  },
-  {
-    user_id: "usr-doc-03",
-    name: "Dr. Elena Rodriguez, MD",
-    department: "Internal Medicine & Post-Discharge Recovery",
-    specialty: "Geriatric & Complex Care",
-    hospital: "MetroHealth Medical Center - West Wing",
-    license_number: "MD-6492018-NY",
-    status: "PENDING_APPROVAL",
-    assigned_patients_count: 0,
-    authorized_at: "2026-10-12T14:15:00Z",
-  },
-  {
-    user_id: "usr-doc-04",
-    name: "Dr. James Wilson, MD",
-    department: "Pulmonary & Critical Care",
-    specialty: "Respiratory Medicine",
-    hospital: "MetroHealth Respiratory Pavilion",
-    license_number: "MD-5294810-NY",
-    status: "SUSPENDED",
-    assigned_patients_count: 1,
-    authorized_at: "2026-08-01T11:00:00Z",
-  },
-];
 
 export default function AdminPage() {
   const { session } = useSmartCareAuth();
@@ -148,7 +102,6 @@ export default function AdminPage() {
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [reload, setReload] = useState(0);
-  const [isDemo, setIsDemo] = useState(false);
 
   // Filters
   const [doctorSearch, setDoctorSearch] = useState("");
@@ -160,69 +113,7 @@ export default function AdminPage() {
     setError("");
 
     if (!session) {
-      setIsDemo(true);
-      setDoctors(INITIAL_DEMO_DOCTORS);
-      setUserRoles([
-        { user_id: "usr-doc-01", role: "CLINICIAN", created_at: "2026-09-15T09:00:00Z" },
-        { user_id: "usr-doc-02", role: "CLINICIAN", created_at: "2026-09-20T10:30:00Z" },
-        { user_id: "usr-doc-03", role: "CLINICIAN", created_at: "2026-10-12T14:15:00Z" },
-        { user_id: "usr-doc-04", role: "CLINICIAN", created_at: "2026-08-01T11:00:00Z" },
-        { user_id: "usr-patient-01", role: "PATIENT", created_at: "2026-10-12T11:00:00Z" },
-        { user_id: "usr-patient-02", role: "PATIENT", created_at: "2026-10-13T09:00:00Z" },
-        { user_id: "usr-caregiver-01", role: "CAREGIVER", created_at: "2026-10-11T09:30:00Z" },
-        { user_id: "usr-admin-01", role: "ADMIN", created_at: "2026-08-01T00:00:00Z" },
-      ]);
-      setPatients([
-        { id: "demo-p-1", full_name: "Eleanor Vance" },
-        { id: "demo-p-2", full_name: "Marcus Brody" },
-        { id: "demo-p-3", full_name: "Arthur Pendelton" },
-        { id: "demo-p-4", full_name: "Clara Oswald" },
-      ]);
-      setCarePlans([
-        { id: "demo-cp-1", name: "Post-Cardiac Recovery Regimen", status: "ACTIVE" },
-        { id: "demo-cp-2", name: "Orthopedic Mobility Protocol", status: "ACTIVE" },
-        { id: "demo-cp-3", name: "Pulmonary Rehabilitation Phase 2", status: "ACTIVE" },
-      ]);
-      setAccessGrants([
-        { patient_id: "demo-p-1", user_id: "usr-doc-01", access_role: "CLINICIAN", active: true, granted_at: "2026-09-16T10:00:00Z" },
-        { patient_id: "demo-p-1", user_id: "usr-patient-01", access_role: "PATIENT", active: true, granted_at: "2026-09-16T10:05:00Z" },
-        { patient_id: "demo-p-1", user_id: "usr-caregiver-01", access_role: "CAREGIVER", active: true, granted_at: "2026-09-17T11:00:00Z" },
-        { patient_id: "demo-p-2", user_id: "usr-doc-02", access_role: "CLINICIAN", active: true, granted_at: "2026-09-22T08:30:00Z" },
-        { patient_id: "demo-p-2", user_id: "usr-patient-02", access_role: "PATIENT", active: true, granted_at: "2026-09-22T08:35:00Z" },
-      ]);
-      setCarePlanCount(3);
-      setEscalations([{ status: "OPEN" }, { status: "RESOLVED" }, { status: "ACKNOWLEDGED" }]);
-      setNotifications([
-        { id: "demo-notif-1", channel: "WEB", status: "DELIVERED", created_at: "2026-10-14T10:00:00Z" },
-        { id: "demo-notif-2", channel: "EMAIL", status: "SENT", created_at: "2026-10-13T14:30:00Z" },
-      ]);
-      setAuditEntries([
-        { id: "audit-01", actor_id: "usr-admin-01", action: "AUTHORIZE_DOCTOR", object_type: "DOCTOR", object_id: "usr-doc-03", occurred_at: "2026-10-14T15:30:00Z" },
-        { id: "audit-02", actor_id: "usr-admin-01", action: "GRANT_PATIENT_ACCESS", object_type: "PATIENT_ACCESS", object_id: "demo-p-1", occurred_at: "2026-10-14T12:00:00Z" },
-        { id: "audit-03", actor_id: "usr-doc-01", action: "CREATE_CARE_PLAN", object_type: "CARE_PLAN", object_id: "demo-cp-1", occurred_at: "2026-10-14T09:15:00Z" },
-        { id: "audit-04", actor_id: "usr-doc-01", action: "RESOLVE_ESCALATION", object_type: "ESCALATION", object_id: "esc-001", occurred_at: "2026-10-14T08:30:00Z" },
-        { id: "audit-05", actor_id: "usr-admin-01", action: "SUSPEND_DOCTOR", object_type: "DOCTOR", object_id: "usr-doc-04", occurred_at: "2026-10-10T11:00:00Z" },
-      ]);
-      setVersions([
-        {
-          id: "v-2",
-          care_plan_id: "demo-cp-1",
-          version: 2,
-          snapshot: { name: "Post-Cardiac Recovery Regimen", status: "ACTIVE", source_type: "healthcare" },
-          author_id: "usr-doc-01",
-          reason: "Adjusted morning window for cardiac medication",
-          created_at: "2026-10-14T10:00:00Z",
-        },
-        {
-          id: "v-1",
-          care_plan_id: "demo-cp-1",
-          version: 1,
-          snapshot: { name: "Post-Cardiac Recovery Regimen", status: "ACTIVE", source_type: "healthcare" },
-          author_id: "usr-doc-01",
-          reason: "Initial care plan baseline established",
-          created_at: "2026-10-12T08:00:00Z",
-        },
-      ]);
+      setError("Authentication session required to access the administrator console.");
       setLoading(false);
       return;
     }
@@ -342,10 +233,7 @@ export default function AdminPage() {
     const form = event.currentTarget;
     const data = new FormData(form);
     const userId = String(data.get("doctorUserId") || "").trim();
-    const name = String(data.get("doctorName") || "").trim();
-    const department = String(data.get("doctorDepartment") || "").trim();
-    const specialty = String(data.get("doctorSpecialty") || "").trim();
-    const licenseNumber = String(data.get("doctorLicense") || "").trim();
+    const doctorName = String(data.get("doctorName") || "").trim();
 
     if (!userId) {
       setError("Provide a valid Supabase user ID (UUID) for the doctor account.");
@@ -354,38 +242,7 @@ export default function AdminPage() {
     }
 
     if (!session) {
-      // Demo mode simulation
-      const newDoc: DoctorRecord = {
-        user_id: userId,
-        name: name || `Dr. ${userId.slice(0, 8)}`,
-        department: department || "General Medicine",
-        specialty: specialty || "Attending Physician",
-        hospital: "MetroHealth Medical Center",
-        license_number: licenseNumber || "NPI-PENDING",
-        status: "AUTHORIZED",
-        assigned_patients_count: 0,
-        authorized_at: "2026-10-15T01:00:00Z",
-      };
-
-      setDoctors((curr) => [newDoc, ...curr.filter((d) => d.user_id !== userId)]);
-      setUserRoles((curr) => [
-        { user_id: userId, role: "CLINICIAN", created_at: "2026-10-15T01:00:00Z" },
-        ...curr.filter((r) => r.user_id !== userId),
-      ]);
-      setAuditEntries((curr) => [
-        {
-          id: `audit-${curr.length + 1}`,
-          actor_id: "usr-admin-01",
-          action: "AUTHORIZE_DOCTOR",
-          object_type: "DOCTOR",
-          object_id: userId,
-          occurred_at: "2026-10-15T01:00:00Z",
-        },
-        ...curr,
-      ]);
-
-      setMessage(`Doctor ${newDoc.name} authorized with CLINICIAN privileges (Simulated in demo mode).`);
-      form.reset();
+      setError("Authentication session required to authorize a doctor.");
       setSaving(false);
       return;
     }
@@ -399,7 +256,7 @@ export default function AdminPage() {
       console.error("Unable to authorize doctor.", upsertError);
       setError(`Doctor authorization failed: ${upsertError.message}`);
     } else {
-      setMessage(`Doctor account ${userId} authorized successfully as CLINICIAN.`);
+      setMessage(`Doctor ${doctorName || userId} authorized successfully as CLINICIAN.`);
       form.reset();
       setReload((v) => v + 1);
     }
@@ -429,23 +286,7 @@ export default function AdminPage() {
     setMessage("");
 
     if (!session) {
-      setDoctors((curr) =>
-        curr.map((d) =>
-          d.user_id === doctor.user_id ? { ...d, status: newStatus } : d,
-        ),
-      );
-      setAuditEntries((curr) => [
-        {
-          id: `audit-${curr.length + 1}`,
-          actor_id: "usr-admin-01",
-          action: `${newStatus}_DOCTOR`,
-          object_type: "DOCTOR",
-          object_id: doctor.user_id,
-          occurred_at: "2026-10-15T01:00:00Z",
-        },
-        ...curr,
-      ]);
-      setMessage(`Doctor status updated to ${newStatus} (Simulated in demo mode).`);
+      setError("Authentication session required to update doctor status.");
       return;
     }
 
@@ -524,23 +365,7 @@ export default function AdminPage() {
     }
 
     if (!session) {
-      setUserRoles((curr) => [
-        { user_id: userId, role: role as SmartCareRole, created_at: "2026-10-15T01:00:00Z" },
-        ...curr.filter((r) => r.user_id !== userId),
-      ]);
-      setAuditEntries((curr) => [
-        {
-          id: `audit-${curr.length + 1}`,
-          actor_id: "usr-admin-01",
-          action: "ASSIGN_ROLE",
-          object_type: "USER_ROLE",
-          object_id: userId,
-          occurred_at: "2026-10-15T01:00:00Z",
-        },
-        ...curr,
-      ]);
-      setMessage("SmartCare role saved (Simulated in demo mode).");
-      form.reset();
+      setError("Authentication session required to assign a role.");
       setSaving(false);
       return;
     }
@@ -588,29 +413,7 @@ export default function AdminPage() {
     }
 
     if (!session) {
-      setAccessGrants((curr) => [
-        {
-          patient_id: patientId,
-          user_id: userId,
-          access_role: accessRole as PatientAccess["access_role"],
-          active: true,
-          granted_at: "2026-10-15T01:00:00Z",
-        },
-        ...curr,
-      ]);
-      setAuditEntries((curr) => [
-        {
-          id: `audit-${curr.length + 1}`,
-          actor_id: "usr-admin-01",
-          action: "GRANT_PATIENT_ACCESS",
-          object_type: "PATIENT_ACCESS",
-          object_id: patientId,
-          occurred_at: "2026-10-15T01:00:00Z",
-        },
-        ...curr,
-      ]);
-      setMessage("Patient access grant saved (Simulated in demo mode).");
-      form.reset();
+      setError("Authentication session required to grant patient access.");
       setSaving(false);
       return;
     }
@@ -639,25 +442,7 @@ export default function AdminPage() {
     setMessage("");
 
     if (!session) {
-      setAccessGrants((curr) =>
-        curr.map((g) =>
-          g.patient_id === grant.patient_id && g.user_id === grant.user_id
-            ? { ...g, active: false }
-            : g,
-        ),
-      );
-      setAuditEntries((curr) => [
-        {
-          id: `audit-${curr.length + 1}`,
-          actor_id: "usr-admin-01",
-          action: "REVOKE_PATIENT_ACCESS",
-          object_type: "PATIENT_ACCESS",
-          object_id: grant.patient_id,
-          occurred_at: "2026-10-15T01:00:00Z",
-        },
-        ...curr,
-      ]);
-      setMessage("Patient access revoked (Simulated in demo mode).");
+      setError("Authentication session required to revoke patient access.");
       return;
     }
 
@@ -724,20 +509,7 @@ export default function AdminPage() {
       </div>
 
       <div className="mx-auto max-w-7xl space-y-8">
-        {/* Demo Preview Banner */}
-        {isDemo && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#EA9D9D]/40 bg-[#601D49]/25 px-4 py-3 text-xs text-[#FFEBB8]">
-            <div className="flex items-center gap-2">
-              <span className="rounded bg-[#FFEBB8] px-2 py-0.5 font-bold text-[#4a1538]">
-                DEMO PREVIEW
-              </span>
-              <span>
-                Viewing Hospital Admin Portal in preview mode with synthetic facility records. Doctor authorizations and access grants operate in simulated preview mode without database writes.
-              </span>
-            </div>
-            <span className="text-[#EA9D9D]">Governance Simulation Mode</span>
-          </div>
-        )}
+
 
         {/* Top Header & Facility Identity */}
         <header className="flex flex-col gap-6 rounded-2xl border border-white/10 bg-[#180a15]/80 p-6 shadow-xl shadow-black/30 backdrop-blur-md md:flex-row md:items-center md:justify-between">

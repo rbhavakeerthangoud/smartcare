@@ -47,12 +47,18 @@ export async function POST(request: Request) {
 
     const { data: roleRecord, error: roleError } = await userClient
       .from("smartcare_user_roles")
-      .select("role")
+      .select("role,status")
       .eq("user_id", user.id)
       .maybeSingle();
     if (roleError) throw roleError;
     if (roleRecord?.role !== "CLINICIAN" && roleRecord?.role !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    }
+    if (roleRecord.status && roleRecord.status !== "ACTIVE") {
+      return NextResponse.json(
+        { error: "Forbidden: Account privileges are not active." },
+        { status: 403 },
+      );
     }
     if (!serviceRoleKey) {
       return NextResponse.json(

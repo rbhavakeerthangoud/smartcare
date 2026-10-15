@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 
@@ -10,15 +10,6 @@ export default function NewCarePlanPage() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [isDemo, setIsDemo] = useState(false);
-
-  useEffect(() => {
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        setIsDemo(true);
-      }
-    });
-  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -43,13 +34,8 @@ export default function NewCarePlanPage() {
         data: { session },
       } = await supabase.auth.getSession();
 
-      if (!session || isDemo) {
-        setSubmitted(true);
-        form.reset();
-        setTimeout(() => {
-          router.push("/care-plans/demo-care-plan-1");
-        }, 1000);
-        return;
+      if (!session) {
+        throw new Error("Authentication required: Please sign in with an authorized clinician account.");
       }
 
       // Create patient
@@ -150,16 +136,6 @@ export default function NewCarePlanPage() {
             already-prescribed activities.
           </p>
 
-          {isDemo && (
-            <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
-              <span className="rounded-full bg-amber-500/20 px-2 py-0.5 font-semibold text-amber-300">
-                DEMO PREVIEW
-              </span>
-              <span>
-                Preview Mode — Submitting this form simulates plan generation and navigates to the sample care plan without writing to the database.
-              </span>
-            </div>
-          )}
         </div>
 
         <form

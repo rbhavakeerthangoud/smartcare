@@ -53,7 +53,7 @@ export interface SubresourceRecord {
 export function authorizeDoctor(
   actorRole: ApplicationRole,
   targetUserId: string,
-  _existingRoles: UserRoleRecord[] = [],
+  existingRoles: UserRoleRecord[] = [],
 ): { success: boolean; error?: string; roleRecord?: UserRoleRecord } {
   if (actorRole !== "ADMIN") {
     return {
@@ -64,6 +64,13 @@ export function authorizeDoctor(
 
   if (!targetUserId || !targetUserId.trim()) {
     return { success: false, error: "INVALID_USER: Target user ID is required." };
+  }
+
+  const existingActive = existingRoles.find(
+    (r) => r.userId === targetUserId.trim() && r.role === "CLINICIAN" && r.status === "ACTIVE",
+  );
+  if (existingActive) {
+    return { success: true, roleRecord: existingActive };
   }
 
   const roleRecord: UserRoleRecord = {
@@ -85,7 +92,7 @@ export function canAssignRole(
   actorUserId: string,
   actorRole: ApplicationRole,
   targetUserId: string,
-  _requestedRole: ApplicationRole,
+  requestedRole: ApplicationRole,
 ): { permitted: boolean; reason?: string } {
   if (actorRole !== "ADMIN") {
     return {
@@ -98,6 +105,14 @@ export function canAssignRole(
     return {
       permitted: false,
       reason: "SELF_ESCALATION_BLOCKED: Administrators cannot modify their own privileges or self-escalate.",
+    };
+  }
+
+  const validRoles: ApplicationRole[] = ["ADMIN", "CLINICIAN", "PATIENT", "CAREGIVER"];
+  if (!validRoles.includes(requestedRole)) {
+    return {
+      permitted: false,
+      reason: `INVALID_ROLE: Role "${requestedRole}" is not recognized by SmartCare.`,
     };
   }
 
@@ -340,17 +355,19 @@ export function canPatientWriteEvidence(
  */
 export function assertDemoIsolation(
   isDemo: boolean,
-  _operation: "insert" | "update" | "delete" | "rpc",
-): { safe: boolean; isolated: boolean; error?: string } {
+  operation: "insert" | "update" | "delete" | "rpc" = "insert",
+): { safe: boolean; isolated: boolean; operation: string; error?: string } {
   if (isDemo) {
     return {
       safe: true,
       isolated: true,
+      operation,
     };
   }
   return {
     safe: true,
     isolated: false,
+    operation,
   };
 }
 
@@ -363,4 +380,162 @@ export function preventDemoDatabaseWrite(
       `DEMO_MUTATION_PREVENTED: "${actionDescription}" blocked. Demo mode operations must execute in-memory only without mutating the database.`,
     );
   }
+}
+
+/**
+ * 12. Strict Patient Care-Plan Scoping Filter
+ * A plan is accepted only when it has a valid, explicitly assigned patient_id
+ * that belongs to the authenticated user's authorized patientIds list.
+ */
+export function filterAuthorizedCarePlans<T extends { patient_id?: string | null }>(
+  rawPlans: T[],
+  authorizedPatientIds: string[],
+): T[] {
+  if (!authorizedPatientIds || authorizedPatientIds.length === 0) return [];
+  return rawPlans.filter(
+    (plan) => Boolean(plan.patient_id && authorizedPatientIds.includes(plan.patient_id)),
+  );
+}
+
+/**
+ * 13. Care-Plan Creation Authorization Check (RLS Mirror)
+ * Mirrors the PostgreSQL RLS policy `smartcare_care_plans_create`:
+ * WITH CHECK (
+ *   public.smartcare_user_has_role(array['CLINICIAN', 'ADMIN'])
+ *   and public.smartcare_can_access_patient(patient_id)
+ * )
+ */
+export function canCreateCarePlan(
+  actorRole: ApplicationRole | null,
+  actorStatus: DoctorStatus = "AUTHORIZED",
+  targetPatientId?: string,
+  existingGrants: PatientAccessRecord[] = [],
+  actorUserId?: string,
+): { permitted: boolean; reason?: string } {
+  if (!actorRole) {
+    return { permitted: false, reason: "UNAUTHENTICATED: Must be signed in to create care plans." };
+  }
+
+  // Explicitly deny PATIENT users from creating care plans
+  if (actorRole === "PATIENT") {
+    return {
+      permitted: false,
+      reason: "POLICY_VIOLATION: Patients cannot create care plans directly. Plans must be prescribed by an authorized clinician.",
+    };
+  }
+
+  // Explicitly deny CAREGIVER users
+  if (actorRole === "CAREGIVER") {
+    return {
+      permitted: false,
+      reason: "POLICY_VIOLATION: Caregivers cannot create care plans directly.",
+    };
+  }
+
+  if (actorRole === "ADMIN") {
+    return { permitted: true };
+  }
+
+  if (actorRole === "CLINICIAN") {
+    if (actorStatus !== "AUTHORIZED") {
+      return {
+        permitted: false,
+        reason: "DOCTOR_UNAUTHORIZED: Suspended or unverified doctors cannot create care plans.",
+      };
+    }
+
+    if (targetPatientId && actorUserId) {
+      const hasAccess = existingGrants.some(
+        (g) =>
+          g.patientId === targetPatientId &&
+          g.userId === actorUserId &&
+          g.accessRole === "CLINICIAN" &&
+          g.active,
+      );
+      if (!hasAccess && existingGrants.length > 0) {
+        return {
+          permitted: false,
+          reason: "OUT_OF_SCOPE: Doctor does not have clinical access to this patient.",
+        };
+      }
+    }
+
+    return { permitted: true };
+  }
+
+  return { permitted: false, reason: "UNAUTHORIZED_ROLE: Role not recognized." };
+}
+
+/**
+ * 14. Care-Plan Detail & Management Route Authorization
+ * The clinician management route at /care-plans/[id] exposes care-plan
+ * administration, task configuration, governance access controls,
+ * escalations, dependencies, and audit history.
+ *
+ * It is strictly restricted to authorized CLINICIAN and ADMIN roles.
+ * PATIENT and CAREGIVER roles are blocked from management controls,
+ * with patients viewing their care plans strictly via the Patient Portal.
+ */
+export function canAccessCarePlanManagement(
+  actorRole: ApplicationRole | null,
+  actorStatus: DoctorStatus = "AUTHORIZED",
+  targetPatientId?: string,
+  existingGrants: PatientAccessRecord[] = [],
+  actorUserId?: string,
+): { permitted: boolean; reason?: string } {
+  if (!actorRole) {
+    return {
+      permitted: false,
+      reason: "UNAUTHENTICATED: Must be signed in with an authorized role to access care-plan management.",
+    };
+  }
+
+  // Deny PATIENT users from clinician-facing care-plan management
+  if (actorRole === "PATIENT") {
+    return {
+      permitted: false,
+      reason: "POLICY_VIOLATION: Patients cannot access the clinician care-plan management workspace. Patient care plans are viewed through the Patient Portal.",
+    };
+  }
+
+  // Deny CAREGIVER users
+  if (actorRole === "CAREGIVER") {
+    return {
+      permitted: false,
+      reason: "POLICY_VIOLATION: Caregivers cannot access the clinician care-plan management workspace.",
+    };
+  }
+
+  if (actorRole === "ADMIN") {
+    return { permitted: true };
+  }
+
+  if (actorRole === "CLINICIAN") {
+    if (actorStatus !== "AUTHORIZED") {
+      return {
+        permitted: false,
+        reason: "DOCTOR_UNAUTHORIZED: Suspended or unverified doctors cannot manage care plans.",
+      };
+    }
+
+    if (targetPatientId && actorUserId && existingGrants.length > 0) {
+      const hasAccess = existingGrants.some(
+        (g) =>
+          g.patientId === targetPatientId &&
+          g.userId === actorUserId &&
+          g.accessRole === "CLINICIAN" &&
+          g.active,
+      );
+      if (!hasAccess) {
+        return {
+          permitted: false,
+          reason: "OUT_OF_SCOPE: Doctor does not have clinical access to this patient.",
+        };
+      }
+    }
+
+    return { permitted: true };
+  }
+
+  return { permitted: false, reason: "UNAUTHORIZED_ROLE: Role not recognized." };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { generateOccurrences } from "@/lib/smartcare/recurrence-engine";
@@ -34,15 +34,7 @@ function NewTaskForm() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [isDemo, setIsDemo] = useState(false);
 
-  useEffect(() => {
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session || (carePlanId && carePlanId.startsWith("demo-"))) {
-        setIsDemo(true);
-      }
-    });
-  }, [carePlanId]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -138,12 +130,9 @@ function NewTaskForm() {
         data: { session },
       } = await supabase.auth.getSession();
 
-      if (!session || isDemo || (carePlanId && carePlanId.startsWith("demo-"))) {
-        setSubmitted(true);
-        form.reset();
-        setTimeout(() => {
-          router.push(`/care-plans/${carePlanId || "demo-care-plan-1"}`);
-        }, 1000);
+      if (!session) {
+        setErrorMessage("Authentication session required to create tasks.");
+        setLoading(false);
         return;
       }
 
@@ -281,16 +270,6 @@ function NewTaskForm() {
             Add an activity that is already part of the patient&apos;s prescribed care plan.
           </p>
 
-          {isDemo && (
-            <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
-              <span className="rounded-full bg-amber-500/20 px-2 py-0.5 font-semibold text-amber-300">
-                DEMO PREVIEW
-              </span>
-              <span>
-                Preview Mode — Submitting this form simulates task schedule calculation and returns to the care plan without writing to the database.
-              </span>
-            </div>
-          )}
         </div>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-6 sc-animate-fade-up-delay-1">
@@ -679,7 +658,7 @@ function NewTaskForm() {
 
           {submitted && (
             <div className="sc-alert-success">
-              <h3 className="font-semibold">Task Created {isDemo ? "(Simulated)" : ""}</h3>
+              <h3 className="font-semibold">Task Created</h3>
               <p className="mt-2 text-sm">
                 The task and its occurrences were saved successfully.
                 Returning to the care plan...

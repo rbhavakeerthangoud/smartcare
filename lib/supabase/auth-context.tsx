@@ -13,10 +13,12 @@ import type { ApplicationRole } from "@/lib/smartcare/role-navigation";
 import { supabase } from "./client";
 
 export type SmartCareRole = ApplicationRole;
+export type AccountStatus = "ACTIVE" | "SUSPENDED" | "REVOKED" | "UNASSIGNED";
 
 interface AuthContextValue {
   session: Session | null;
   role: SmartCareRole | null;
+  status: AccountStatus;
   loading: boolean;
   roleLoading: boolean;
   roleError: boolean;
@@ -40,12 +42,20 @@ function parseRole(value: unknown, status?: unknown): SmartCareRole | null {
   return null;
 }
 
+function parseStatus(record: { role?: string; status?: string } | null): AccountStatus {
+  if (record?.status === "SUSPENDED") return "SUSPENDED";
+  if (record?.status === "REVOKED") return "REVOKED";
+  if (record?.role) return "ACTIVE";
+  return "UNASSIGNED";
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [roleResult, setRoleResult] = useState<{
     userId: string;
     role: SmartCareRole | null;
+    status: AccountStatus;
     error: boolean;
   } | null>(null);
 
@@ -97,18 +107,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .maybeSingle();
         if (!active) return;
         if (error) {
-          setRoleResult({ userId, role: null, error: true });
+          setRoleResult({ userId, role: null, status: "UNASSIGNED", error: true });
           return;
         }
         const record = data as { role?: string; status?: string } | null;
         setRoleResult({
           userId,
           role: parseRole(record?.role, record?.status),
+          status: parseStatus(record),
           error: false,
         });
       } catch {
         if (active) {
-          setRoleResult({ userId, role: null, error: true });
+          setRoleResult({ userId, role: null, status: "UNASSIGNED", error: true });
         }
       }
     })();
@@ -146,6 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       session,
       role: currentRoleResult?.role || null,
+      status: currentRoleResult?.status || "UNASSIGNED",
       loading,
       roleLoading: Boolean(userId && !currentRoleResult),
       roleError: Boolean(currentRoleResult?.error),

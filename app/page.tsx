@@ -724,7 +724,7 @@ export default function HomePage() {
             </p>
             <div className="flex flex-wrap items-center gap-4">
               <Link href="/patient" className="sc-home-button-primary">
-                Preview Patient Portal <Arrow />
+                Open Patient Portal <Arrow />
               </Link>
               <Link href="/clinical" className="sc-home-button-quiet">
                 Clinical Workspace <Arrow />
